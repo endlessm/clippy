@@ -1,0 +1,101 @@
+/* clippy-version.h.in
+ *
+ * Copyright 2018 Endless Mobile, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ * 
+ * Author: Juan Pablo Ugarte <ugarte@endlessm.com>
+ */
+
+#ifndef CLIPPY_VERSION_H
+#define CLIPPY_VERSION_H
+
+#if !defined(CLIPPY_INSIDE) && !defined(CLIPPY_COMPILATION)
+# error "Only <clipply.h> can be included directly."
+#endif
+
+/**
+ * SECTION:clipplyversion
+ * @short_description: clipply version checking
+ *
+ * clipply provides macros to check the version of the library
+ * at compile-time
+ */
+
+/**
+ * CLIPPY_MAJOR_VERSION:
+ *
+ * clipply major version component (e.g. 1 if %CLIPPY_VERSION is 1.2.3)
+ */
+#define CLIPPY_MAJOR_VERSION (@MAJOR_VERSION@)
+
+/**
+ * CLIPPY_MINOR_VERSION:
+ *
+ * clipply minor version component (e.g. 2 if %CLIPPY_VERSION is 1.2.3)
+ */
+#define CLIPPY_MINOR_VERSION (@MINOR_VERSION@)
+
+/**
+ * CLIPPY_MICRO_VERSION:
+ *
+ * clipply micro version component (e.g. 3 if %CLIPPY_VERSION is 1.2.3)
+ */
+#define CLIPPY_MICRO_VERSION (@MICRO_VERSION@)
+
+/**
+ * CLIPPY_VERSION
+ *
+ * clipply version.
+ */
+#define CLIPPY_VERSION (@VERSION@)
+
+/**
+ * CLIPPY_VERSION_S:
+ *
+ * clipply version, encoded as a string, useful for printing and
+ * concatenation.
+ */
+#define CLIPPY_VERSION_S "@VERSION@"
+
+#define CLIPPY_ENCODE_VERSION(major,minor,micro) \
+        ((major) << 24 | (minor) << 16 | (micro) << 8)
+
+/**
+ * CLIPPY_VERSION_HEX:
+ *
+ * clipply version, encoded as an hexadecimal number, useful for
+ * integer comparisons.
+ */
+#define CLIPPY_VERSION_HEX \
+        (CLIPPY_ENCODE_VERSION (CLIPPY_MAJOR_VERSION, CLIPPY_MINOR_VERSION, CLIPPY_MICRO_VERSION))
+
+/**
+ * CLIPPY_CHECK_VERSION:
+ * @major: required major version
+ * @minor: required minor version
+ * @micro: required micro version
+ *
+ * Compile-time version checking. Evaluates to %TRUE if the version
+ * of clipply is greater than the required one.
+ */
+#define CLIPPY_CHECK_VERSION(major,minor,micro)   \
+        (CLIPPY_MAJOR_VERSION > (major) || \
+         (CLIPPY_MAJOR_VERSION == (major) && CLIPPY_MINOR_VERSION > (minor)) || \
+         (CLIPPY_MAJOR_VERSION == (major) && CLIPPY_MINOR_VERSION == (minor) && \
+          CLIPPY_MICRO_VERSION >= (micro)))
+
+#endif /* CLIPPY_VERSION_H */
+
