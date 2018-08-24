@@ -41,43 +41,6 @@ typedef struct
   gchar          *css;
 } Clippy;
 
-typedef enum
-{
-  CLIPPY_OK,
-  CLIPPY_NO_OBJECT,
-  CLIPPY_NO_PROPERTY,
-  CLIPPY_NO_SIGNAL,
-  CLIPPY_NO_DETAIL,
-  CLIPPY_NOT_A_WIDGET,
-  CLIPPY_WRONG_SIGNAL_TYPE
-} ClippyError;
-
-#define CLIPPY_ERROR clippy_quark()
-G_DEFINE_QUARK(clippy_error, clippy)
-
-static GError *
-error_new (ClippyError code)
-{
-  const gchar *message;
-  
-  if (code == CLIPPY_NO_OBJECT)
-    message = "Object not found";
-  else if (code == CLIPPY_NO_PROPERTY)
-    message = "Property not found";
-  else if (code == CLIPPY_NO_SIGNAL)
-    message = "Signal not found";
-  else if (code == CLIPPY_NO_DETAIL)
-    message = "Signal requieres a detail";
-  else if (code == CLIPPY_NOT_A_WIDGET)
-    message = "Object is not a widget";
-  else if (code == CLIPPY_WRONG_SIGNAL_TYPE)
-    message = "Signal is not an action signal";
-  else
-    return NULL;
-
-  return g_error_new_literal (CLIPPY_ERROR, code, message);
-}
-
 static inline void
 clippy_emit_signal (Clippy      *clip,
                     const gchar *signal_name,
@@ -236,9 +199,8 @@ clippy_clear (Clippy *clip)
   g_clear_object (&clip->widget);
 }
 
-
-static ClippyError
-clippy_highlight (Clippy *clip, const gchar *object)
+static void
+clippy_highlight (Clippy *clip, const gchar *object, GError **error)
 {
   GObject *gobject;
 
@@ -246,11 +208,15 @@ clippy_highlight (Clippy *clip, const gchar *object)
   clippy_clear (clip);
  
   /* Find and highlight widget */
-  if (!(gobject = app_get_object (clip->app, object)))
-    return CLIPPY_NO_OBJECT;
+  if (app_get_object_info (clip->app, object, NULL, NULL,
+                           &gobject, NULL, NULL, error))
+    return;
 
-  if (!GTK_IS_WIDGET (gobject))
-    return CLIPPY_NOT_A_WIDGET;
+  clippy_return_if_fail (GTK_IS_WIDGET (gobject),
+                         CLIPPY_NOT_A_WIDGET,
+                         "Object '%s' of type %s is not a GtkWidget",
+                         object,
+                         G_OBJECT_TYPE_NAME (gobject));
   
   clip->widget = (GtkWidget *) g_object_ref (gobject);
 
@@ -258,15 +224,14 @@ clippy_highlight (Clippy *clip, const gchar *object)
   
   gtk_style_context_add_class (gtk_widget_get_style_context (clip->widget),
                                HIGHLIGHT_CLASS);
-  
-  return CLIPPY_OK;
 }
 
-static ClippyError
-clippy_set (Clippy      *clip,
-            const gchar *object,
-            const gchar *property,
-            GVariant    *variant)
+static void
+clippy_set (Clippy       *clip,
+            const gchar  *object,
+            const gchar  *property,
+            GVariant     *variant,
+            GError      **error)
 {
   GValue gvalue = G_VALUE_INIT;
   GObject *gobject;
@@ -274,11 +239,9 @@ clippy_set (Clippy      *clip,
   
   g_debug ("%s %s %s", __func__, object, property);
   
-  if (!(gobject = app_get_object (clip->app, object)))
-    return CLIPPY_NO_OBJECT;
-
-  if (!(pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (gobject), property)))
-    return CLIPPY_NO_PROPERTY;
+  if (app_get_object_info (clip->app, object, property, NULL,
+                           &gobject, &pspec, NULL, error))
+    return;
 
   g_value_init (&gvalue, pspec->value_type);
   value_set_variant (&gvalue, variant);
@@ -286,15 +249,14 @@ clippy_set (Clippy      *clip,
   g_object_set_property (gobject, property, &gvalue);
   
   g_value_unset (&gvalue);
-  
-  return CLIPPY_OK;
 }
 
-static ClippyError
+static void
 clippy_get (Clippy       *clip,
             const gchar  *object,
             const gchar  *property,
-            GVariant    **variant)
+            GVariant    **variant,
+            GError      **error)
 {
   GValue gvalue = G_VALUE_INIT;
   GObject *gobject;
@@ -302,11 +264,9 @@ clippy_get (Clippy       *clip,
   
   g_debug ("%s %s %s", __func__, object, property);
 
-  if (!(gobject = app_get_object (clip->app, object)))
-    return CLIPPY_NO_OBJECT;
-
-  if (!(pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (gobject), property)))
-    return CLIPPY_NO_PROPERTY;
+  if (app_get_object_info (clip->app, object, property, NULL,
+                           &gobject, &pspec, NULL, error))
+    return;
 
   g_value_init (&gvalue, pspec->value_type);
   g_object_get_property (gobject, property, &gvalue);
@@ -314,15 +274,14 @@ clippy_get (Clippy       *clip,
   *variant = variant_new_value (&gvalue);
 
   g_value_unset (&gvalue);
-  
-  return CLIPPY_OK;
 }
 
-static ClippyError
-clippy_connect (Clippy      *clip,
-                const gchar *object,
-                const gchar *signal,
-                const gchar *detail)
+static void
+clippy_connect (Clippy       *clip,
+                const gchar  *object,
+                const gchar  *signal,
+                const gchar  *detail,
+                GError      **error)
 {
   GObject *gobject;
   GClosure *closure;
@@ -332,23 +291,21 @@ clippy_connect (Clippy      *clip,
 
   g_debug ("%s %s %s %s", __func__, object, signal, detail ? detail : "null");
 
-  if (!(gobject = app_get_object (clip->app, object)))
-    return CLIPPY_NO_OBJECT;
-
-  if (!(id = g_signal_lookup (signal, G_OBJECT_TYPE (object))))
-    return CLIPPY_NO_SIGNAL;
+  if (app_get_object_info (clip->app, object, NULL, signal,
+                           &gobject, NULL, &id, error))
+    return;
 
   notify = g_strcmp0 (signal, "notify") == 0;
-
   quark = g_quark_try_string (detail);
   
-  if (notify && !quark)
-    return CLIPPY_NO_DETAIL;
+  if (notify)
+    clippy_return_if_fail (quark,
+                           CLIPPY_NO_DETAIL,
+                           "Notify signal for object '%s' requieres detail (property)",
+                           object);
   
   closure = (notify) ? clip->notify_closure : clip->signal_closure;
   g_signal_connect_closure_by_id (gobject, id, quark, closure, FALSE);
-
-  return CLIPPY_OK;
 }
 
 static void
@@ -371,12 +328,13 @@ value_init_array_from_variant (GValue      *values,
     }
 }
 
-static ClippyError
-clippy_emit (Clippy      *clip,
-             const gchar *object,
-             const gchar *signal,
-             const gchar *detail,
-             GVariant    *params)
+static void
+clippy_emit (Clippy       *clip,
+             const gchar  *object,
+             const gchar  *signal,
+             const gchar  *detail,
+             GVariant     *params,
+             GError      **error)
 {
   GValue retval = G_VALUE_INIT;
   GValue *instance_and_params;
@@ -384,17 +342,17 @@ clippy_emit (Clippy      *clip,
   GSignalQuery query;
   guint id, i;
 
-  if (!(gobject = app_get_object (clip->app, object)))
-    return CLIPPY_NO_OBJECT;
-
-  if (!(id = g_signal_lookup (signal, G_OBJECT_TYPE (gobject))))
-    return CLIPPY_NO_SIGNAL;
+  if (app_get_object_info (clip->app, object, NULL, signal,
+                           &gobject, NULL, &id, error))
+    return;
 
   g_signal_query (id, &query);
 
   /* We only support emiting action signals! */
-  if (!(query.signal_flags & G_SIGNAL_ACTION))
-    return CLIPPY_WRONG_SIGNAL_TYPE;
+  clippy_return_if_fail (query.signal_flags & G_SIGNAL_ACTION,
+                         CLIPPY_WRONG_SIGNAL_TYPE,
+                         "Can not emit signal '%s' from object '%s' of type %s because is not an action signal",
+                         signal, object, G_OBJECT_TYPE_NAME (gobject));
 
   g_debug ("%s is action %s %s n_params %d n_children %ld", __func__,
            object,
@@ -428,8 +386,6 @@ clippy_emit (Clippy      *clip,
     g_value_unset (&retval);
 
   g_free (instance_and_params);
-
-  return CLIPPY_OK;
 }
 
 static void
@@ -442,16 +398,16 @@ clippy_method_call (GDBusConnection       *connection,
                     GDBusMethodInvocation *invocation,
                     gpointer               user_data)
 {
-  ClippyError retval = CLIPPY_OK;
   GVariant *return_value = NULL;
   Clippy *clip = user_data;
+  GError *error = NULL;
 
   if (g_strcmp0 (method_name, "Highlight") == 0)
     {
       g_autofree gchar *object;
 
       g_variant_get (parameters, "(s)", &object);
-      retval = clippy_highlight (clip, object);
+      clippy_highlight (clip, object, &error);
     }
   else if (g_strcmp0 (method_name, "Clear") == 0)
     clippy_clear (clip);
@@ -461,7 +417,7 @@ clippy_method_call (GDBusConnection       *connection,
       GVariant *value;
 
       g_variant_get (parameters, "(ssv)", &object, &property, &value);
-      retval = clippy_set (clip, object, property, value);
+      clippy_set (clip, object, property, value, &error);
 
       g_variant_unref (value);
     }
@@ -471,9 +427,9 @@ clippy_method_call (GDBusConnection       *connection,
       g_autoptr(GVariant) value = NULL;
 
       g_variant_get (parameters, "(ss)", &object, &property);
-      retval = clippy_get (clip, object, property, &value);
+      clippy_get (clip, object, property, &value, &error);
       
-      if (retval == CLIPPY_OK && value)
+      if (!error && value)
         {
           GVariantBuilder builder;
           g_variant_builder_init (&builder, G_VARIANT_TYPE_TUPLE);
@@ -486,7 +442,7 @@ clippy_method_call (GDBusConnection       *connection,
       g_autofree gchar *object, *signal, *detail;
 
       g_variant_get (parameters, "(sss)", &object, &signal, &detail);
-      retval = clippy_connect (clip, object, signal, detail);
+      clippy_connect (clip, object, signal, detail, &error);
     }
   else if (g_strcmp0 (method_name, "Emit") == 0)
     {
@@ -494,11 +450,11 @@ clippy_method_call (GDBusConnection       *connection,
       g_autoptr(GVariant) params = NULL;
 
       g_variant_get (parameters, "(sssv)", &object, &signal, &detail, &params);
-      retval = clippy_emit (clip, object, signal, detail, params);
+      clippy_emit (clip, object, signal, detail, params, &error);
     }
 
-  if (retval)
-    g_dbus_method_invocation_take_error (invocation, error_new (retval));
+  if (error)
+    g_dbus_method_invocation_take_error (invocation, error);
   else
     g_dbus_method_invocation_return_value (invocation, return_value);
 }

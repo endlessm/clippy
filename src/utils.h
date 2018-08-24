@@ -25,14 +25,53 @@
 
 G_BEGIN_DECLS
 
-const gchar *object_get_name   (GObject      *object);
+typedef enum
+{
+  CLIPPY_OK,
+  CLIPPY_UNKNOWN_ERROR,
+  CLIPPY_NO_OBJECT,
+  CLIPPY_NO_PROPERTY,
+  CLIPPY_NO_SIGNAL,
+  CLIPPY_NO_DETAIL,
+  CLIPPY_NOT_A_WIDGET,
+  CLIPPY_WRONG_SIGNAL_TYPE
+} ClippyError;
 
-GObject     *app_get_object    (GApplication *app,
-                                const gchar  *name);
+GQuark clippy_quark (void);
+#define CLIPPY_ERROR clippy_quark()
 
-GVariant    *variant_new_value (const GValue *value);
+#define CLIPPY_ERROR_SET(code,format,...) \
+  if (error) \
+    *error = g_error_new (CLIPPY_ERROR, code, format, __VA_ARGS__)
 
-gboolean     value_set_variant (GValue       *value,
-                                GVariant     *variant);
+#define clippy_return_if_fail(expr,code,format,...) \
+  if (!(expr)) \
+    { \
+      CLIPPY_ERROR_SET (code, format, __VA_ARGS__); \
+      return; \
+    }
+
+#define clippy_return_val_if_fail(expr,val,code,format,...) \
+  if (!(expr)) \
+    { \
+      CLIPPY_ERROR_SET (code, format, __VA_ARGS__); \
+      return val; \
+    }
+
+const gchar *object_get_name     (GObject      *object);
+
+gboolean     app_get_object_info (GApplication *app,
+                                  const gchar  *object,
+                                  const gchar  *property,
+                                  const gchar  *signal,
+                                  GObject     **gobject,
+                                  GParamSpec  **pspec,
+                                  guint        *signal_id,
+                                  GError      **error);
+
+GVariant    *variant_new_value   (const GValue *value);
+
+gboolean     value_set_variant   (GValue       *value,
+                                  GVariant     *variant);
 
 G_END_DECLS

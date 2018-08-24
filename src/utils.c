@@ -21,6 +21,8 @@
 
 #include "utils.h"
 
+G_DEFINE_QUARK(clippy_error, clippy)
+
 /*
  * Get widget name first or buildable name instead
  */
@@ -70,17 +72,25 @@ find_object_forall (GtkWidget *widget, gpointer user_data)
     gtk_container_forall ((GtkContainer *) widget, find_object_forall, data);
 }
 
-GObject *
-app_get_object (GApplication *app, const gchar *name)
+static GObject *
+app_get_object (GApplication *app, const gchar *name, GError **error)
 {
-  FindData data = { name, NULL };
+  FindData data = { NULL, };
   gboolean const_toplevels;
   GList *toplevels, *l;
-  
+  g_auto(GStrv) tokens;
+
+  if (!name)
+    return NULL;
+
   if (app && (const_toplevels = GTK_IS_APPLICATION (app)))
     toplevels = gtk_application_get_windows (GTK_APPLICATION (app));
   else
     toplevels = gdk_screen_get_toplevel_windows (gdk_screen_get_default ());
+
+  /* name can include properties dereferences */
+  tokens = g_strsplit (name, ".", -1);
+  data.name = tokens[0];
 
   for (l = toplevels; l; l = g_list_next (l))
     {
@@ -92,14 +102,107 @@ app_get_object (GApplication *app, const gchar *name)
       if (data.object)
         break;
     }
-  
+
   if (!const_toplevels)
     g_list_free (toplevels);
+
+  clippy_return_val_if_fail (data.object,
+                             NULL, CLIPPY_NO_OBJECT,
+                             "Object '%s' not found",
+                             tokens[0]);
+
+  if (tokens[1])
+    {
+      GObject *objval = data.object;
+      gint i;
+
+      for (i = 1; tokens[i]; i++)
+        {
+          GParamSpec *pspec;
+
+          pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (objval),
+                                                tokens[i]);
+
+          /* Check the property exists, is readable and object type */
+          clippy_return_val_if_fail (pspec,
+                                     NULL, CLIPPY_NO_OBJECT,
+                                     "Object '%s' has no property '%s'",
+                                     tokens[i-1],
+                                     tokens[i]);
+
+          clippy_return_val_if_fail ((pspec->flags & G_PARAM_READABLE),
+                                     NULL, CLIPPY_NO_OBJECT,
+                                     "Can not read property '%s' from object '%s'",
+                                     tokens[i],
+                                     tokens[i-1]);
+
+          clippy_return_val_if_fail (g_type_is_a (pspec->value_type, G_TYPE_OBJECT),
+                                     NULL, CLIPPY_NO_OBJECT,
+                                     "Property '%s' from object '%s' is not an object type",
+                                     tokens[i],
+                                     tokens[i-1]);
+
+          g_object_get (objval, tokens[i], &objval, NULL);
+
+          clippy_return_val_if_fail (objval,
+                                     NULL, CLIPPY_NO_OBJECT,
+                                     "Object '%s.%s' is NULL",
+                                     tokens[i-1],
+                                     tokens[i]);
+          g_object_unref (objval);
+        }
+
+      return objval;
+    }
 
   return data.object;
 }
 
-GVariant * 
+gboolean
+app_get_object_info (GApplication *app,
+                     const gchar  *object,
+                     const gchar  *property,
+                     const gchar  *signal,
+                     GObject     **gobject,
+                     GParamSpec  **pspec,
+                     guint        *signal_id,
+                     GError      **error)
+{
+
+  if (!(app && object))
+    {
+      if (error)
+        *error = g_error_new_literal (CLIPPY_ERROR,
+                                      CLIPPY_UNKNOWN_ERROR,
+                                      "Unknown error");
+      return TRUE;
+    }
+
+  if (!gobject)
+    return FALSE;
+
+  if (!(*gobject = app_get_object (app, object, error)))
+    return TRUE;
+
+  if (property && pspec)
+    clippy_return_val_if_fail (*pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (*gobject),
+                                                                      property),
+                               TRUE, CLIPPY_NO_PROPERTY,
+                               "No property '%s' found on object '%s'",
+                               property,
+                               object);
+
+  if (signal && signal_id)
+    clippy_return_val_if_fail (*signal_id = g_signal_lookup (signal, G_OBJECT_TYPE (*gobject)),
+                               TRUE, CLIPPY_NO_SIGNAL,
+                               "Object '%s' of type %s has no signal '%s'",
+                               object,
+                               G_OBJECT_TYPE_NAME (*gobject),
+                               signal);
+  return FALSE;
+}
+
+GVariant *
 variant_new_value (const GValue *value)
 {
   GType type = G_VALUE_TYPE (value);
