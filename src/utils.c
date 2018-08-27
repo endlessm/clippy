@@ -72,7 +72,7 @@ find_object_forall (GtkWidget *widget, gpointer user_data)
     gtk_container_forall ((GtkContainer *) widget, find_object_forall, data);
 }
 
-static GObject *
+static inline GObject *
 app_get_object (GApplication *app, const gchar *name, GError **error)
 {
   FindData data = { NULL, };
@@ -146,7 +146,7 @@ app_get_object (GApplication *app, const gchar *name, GError **error)
 
           clippy_return_val_if_fail (objval,
                                      NULL, CLIPPY_NO_OBJECT,
-                                     "Object '%s.%s' is NULL",
+                                     "Object '%s.%s' property is not set",
                                      tokens[i-1],
                                      tokens[i]);
           g_object_unref (objval);
@@ -248,7 +248,7 @@ variant_new_value (const GValue *value)
   else if (type == G_TYPE_GSTRING)
     {
       GString *string = g_value_get_boxed (value);
-      return g_variant_new_string ((string && string->str) ? string->str: "");
+      return g_variant_new_string ((string && string->str) ? string->str : "");
     }
   else if (type == G_TYPE_STRV)
     {
@@ -263,15 +263,14 @@ gboolean
 value_set_variant (GValue *value, GVariant *variant)
 {
   GType type = G_VALUE_TYPE (value);
-  GValue gvalue = G_VALUE_INIT;
 
   if (type == G_TYPE_GTYPE)
     g_value_set_gtype (value, g_type_from_name (g_variant_get_string (variant, NULL)));
   else
     {
+      g_auto (GValue) gvalue = G_VALUE_INIT;
       g_dbus_gvariant_to_gvalue (variant, &gvalue);
       g_value_transform (&gvalue, value);
-      g_value_unset (&gvalue);
     }
 
   return TRUE;

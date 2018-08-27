@@ -95,7 +95,7 @@ signal_closure_marshall (GClosure     *closure,
       
       g_variant_builder_init (&builder, G_VARIANT_TYPE_TUPLE);
       
-      /* Add extra parameters */
+      /* Add extra parameters (skip instance) */
       for (i = 1; i < n_param_values; i++)
         {
           GVariant *variant = variant_new_value (&param_values[i]);
@@ -128,12 +128,11 @@ notify_closure_callback (GObject    *gobject,
                          GParamSpec *pspec,
                          Clippy    *clip)
 {
-  GValue value = G_VALUE_INIT;
+  const gchar *id  = object_get_name (gobject);
+  g_auto (GValue) value = G_VALUE_INIT;
   GVariantBuilder builder;
   GVariant *variant;
-  const gchar *id;
 
-  id = object_get_name (gobject);
   g_debug ("%s %s %s", __func__, id, pspec->name);
   
   g_value_init (&value, pspec->value_type);
@@ -150,8 +149,6 @@ notify_closure_callback (GObject    *gobject,
   clippy_emit_signal (clip, "ObjectNotify",
                       g_variant_builder_end (&builder),
                       NULL);
-
-  g_value_unset (&value);
 }
 
 static Clippy *
@@ -233,7 +230,7 @@ clippy_set (Clippy       *clip,
             GVariant     *variant,
             GError      **error)
 {
-  GValue gvalue = G_VALUE_INIT;
+  g_auto (GValue) gvalue = G_VALUE_INIT;
   GObject *gobject;
   GParamSpec *pspec;
   
@@ -245,20 +242,18 @@ clippy_set (Clippy       *clip,
 
   g_value_init (&gvalue, pspec->value_type);
   value_set_variant (&gvalue, variant);
-  
+
   g_object_set_property (gobject, property, &gvalue);
-  
-  g_value_unset (&gvalue);
 }
 
 static void
 clippy_get (Clippy       *clip,
             const gchar  *object,
             const gchar  *property,
-            GVariant    **variant,
+            GVariant    **return_value,
             GError      **error)
 {
-  GValue gvalue = G_VALUE_INIT;
+  g_auto (GValue) gvalue = G_VALUE_INIT;
   GObject *gobject;
   GParamSpec *pspec;
   
@@ -270,10 +265,9 @@ clippy_get (Clippy       *clip,
 
   g_value_init (&gvalue, pspec->value_type);
   g_object_get_property (gobject, property, &gvalue);
-  
-  *variant = variant_new_value (&gvalue);
 
-  g_value_unset (&gvalue);
+  if (return_value)
+    *return_value = g_variant_new ("(v)", variant_new_value (&gvalue));
 }
 
 static void
@@ -309,26 +303,6 @@ clippy_connect (Clippy       *clip,
 }
 
 static void
-value_init_array_from_variant (GValue      *values,
-                               guint        n_params,
-                               const GType *param_types,
-                               GVariant    *params)
-{
-  gint i;
-
-  if (!n_params || !params)
-    return;
-  
-  for (i = 0; i < n_params; i++)
-    {
-      g_autoptr(GVariant) variant = g_variant_get_child_value (params, i);
-
-      g_value_init (&values[i], param_types[i]);
-      value_set_variant (&values[i], variant);
-    }
-}
-
-static void
 clippy_emit (Clippy       *clip,
              const gchar  *object,
              const gchar  *signal,
@@ -336,10 +310,11 @@ clippy_emit (Clippy       *clip,
              GVariant     *params,
              GError      **error)
 {
-  GValue retval = G_VALUE_INIT;
+  g_auto (GValue) retval = G_VALUE_INIT;
+  g_autoptr (GArray) values = NULL;
   GValue *instance_and_params;
-  GObject *gobject;
   GSignalQuery query;
+  GObject *gobject;
   guint id, i;
 
   if (app_get_object_info (clip->app, object, NULL, signal,
@@ -363,29 +338,26 @@ clippy_emit (Clippy       *clip,
   if (query.return_type && query.return_type != G_TYPE_NONE)
     g_value_init (&retval, query.return_type);
   
-  instance_and_params = g_new0 (GValue, query.n_params + 1);
+  values = g_array_new (FALSE, TRUE, sizeof (GValue));
+  g_array_set_size (values, query.n_params + 1);
+  g_array_set_clear_func (values, (GDestroyNotify) g_value_unset);
 
-  /* Set object */
-  g_value_init (instance_and_params, G_TYPE_OBJECT);
-  g_value_set_object (instance_and_params, gobject);
+  /* Set instance */
+  instance_and_params = &g_array_index (values, GValue, 0);
+  g_value_init_from_instance (instance_and_params, gobject);
 
-  /* Set paramenters */
-  value_init_array_from_variant (&instance_and_params[1],
-                                 query.n_params,
-                                 query.param_types,
-                                 params);
+  /* Set parameters */
+  for (i = 0; i < query.n_params; i++)
+    {
+      g_autoptr(GVariant) variant = g_variant_get_child_value (params, i);
+      GValue *val = &g_array_index (values, GValue, (i+1));
+
+      g_value_init (val, query.param_types[i]);
+      value_set_variant (val, variant);
+    }
 
   /* Emit signal */
   g_signal_emitv (instance_and_params, id, g_quark_try_string (detail), &retval);
-
-  /* Unset params */
-  for (i = 0; i <= query.n_params; i++)
-    g_value_unset (&instance_and_params[i]);
-
-  if (query.return_type && query.return_type != G_TYPE_NONE)
-    g_value_unset (&retval);
-
-  g_free (instance_and_params);
 }
 
 static void
@@ -424,18 +396,9 @@ clippy_method_call (GDBusConnection       *connection,
   else if (g_strcmp0 (method_name, "Get") == 0)
     {
       g_autofree gchar *object, *property;
-      g_autoptr(GVariant) value = NULL;
 
       g_variant_get (parameters, "(ss)", &object, &property);
-      clippy_get (clip, object, property, &value, &error);
-      
-      if (!error && value)
-        {
-          GVariantBuilder builder;
-          g_variant_builder_init (&builder, G_VARIANT_TYPE_TUPLE);
-          g_variant_builder_add_value (&builder, g_variant_new_variant (value));
-          return_value = g_variant_builder_end (&builder);
-        }
+      clippy_get (clip, object, property, &return_value, &error);
     }
   else if (g_strcmp0 (method_name, "Connect") == 0)
     {
@@ -526,7 +489,7 @@ void clippy_init (void)
       g_dbus_interface_info_ref (iface_info);
       g_dbus_node_info_unref (info);
       
-      /* Give the app a change to initialize */
+      /* Give the app a chance to initialize */
       g_idle_add (clippy_idle, NULL);
     }
   else
