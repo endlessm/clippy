@@ -44,16 +44,20 @@ typedef struct
 static inline void
 clippy_emit_signal (Clippy      *clip,
                     const gchar *signal_name,
-                    GVariant    *parameters,
-                    GError     **error)
+                    const gchar *format,
+                    ...)
 {
+  va_list params;
+
+  va_start (params, format);
   g_dbus_connection_emit_signal (g_application_get_dbus_connection (clip->app),
                                  NULL,
                                  g_application_get_dbus_object_path (clip->app),
                                  DBUS_IFACE,
                                  signal_name,
-                                 parameters,
-                                 error);
+                                 g_variant_new_va (format, NULL, &params),
+                                 NULL);
+  va_end (params);
 }
 
 static void
@@ -72,55 +76,45 @@ signal_closure_marshall (GClosure     *closure,
 {
   Clippy *clip = marshal_data;
   GSignalInvocationHint *hint = invocation_hint;
-  GObject *object = NULL;
   GVariantBuilder builder;
-  GVariant *params = NULL;
-  const gchar *id;
+  GObject *object = NULL;
+  gint i;
   
   if (!n_param_values || !G_VALUE_HOLDS_OBJECT (param_values))
     return;
   
   object = g_value_get_object (param_values);
-  id = object_get_name (object);
 
   g_debug ("%s %s %s %s %d", __func__,
            G_OBJECT_TYPE_NAME (object), 
-           id,
+           object_get_name (object),
            g_signal_name (hint->signal_id),
            n_param_values);
 
-  if (n_param_values > 1)
+  /*
+   * DBus does not support maybe types or empty tuples this is why we
+   * include the object name in the parameters tuple
+   */
+  g_variant_builder_init (&builder, G_VARIANT_TYPE_TUPLE);
+      
+  /* Add extra parameters (including instance) */
+  for (i = 0; i < n_param_values; i++)
     {
-      gint i;
-      
-      g_variant_builder_init (&builder, G_VARIANT_TYPE_TUPLE);
-      
-      /* Add extra parameters (skip instance) */
-      for (i = 1; i < n_param_values; i++)
-        {
-          GVariant *variant = variant_new_value (&param_values[i]);
+      GVariant *variant = variant_new_value (&param_values[i]);
           
-          if (!variant)  
-            variant = g_variant_new_maybe (G_VARIANT_TYPE_STRING, NULL);
+      if (!variant)
+        variant = g_variant_new_string ("");
 
-          g_variant_builder_add_value (&builder, variant);
-        }
-
-      params = g_variant_new_variant (g_variant_builder_end (&builder));
+      g_variant_builder_add_value (&builder, variant);
     }
 
-  /* Create signal parameters */
-  g_variant_builder_init (&builder, G_VARIANT_TYPE_TUPLE);
-  g_variant_builder_add_value (&builder, g_variant_new_string (id));
-  g_variant_builder_add_value (&builder, g_variant_new_string (g_signal_name (hint->signal_id)));
-  g_variant_builder_add_value (&builder, g_variant_new_string (hint->detail ? g_quark_to_string (hint->detail) : ""));
-  if (params)
-    g_variant_builder_add_value (&builder, params);
-  
   /* Emit D-Bus signal */
-  clippy_emit_signal (clip, "ObjectSignal",
-                      g_variant_builder_end (&builder),
-                      NULL);
+  clippy_emit_signal (clip,
+                      "ObjectSignal",
+                      "(ssv)",
+                      g_signal_name (hint->signal_id),
+                      hint->detail ? g_quark_to_string (hint->detail) : "",
+                      g_variant_new_variant (g_variant_builder_end (&builder)));
 }
 
 static void
@@ -130,7 +124,6 @@ notify_closure_callback (GObject    *gobject,
 {
   const gchar *id  = object_get_name (gobject);
   g_auto (GValue) value = G_VALUE_INIT;
-  GVariantBuilder builder;
   GVariant *variant;
 
   g_debug ("%s %s %s", __func__, id, pspec->name);
@@ -139,16 +132,13 @@ notify_closure_callback (GObject    *gobject,
   g_object_get_property (gobject, pspec->name, &value);
   variant = variant_new_value (&value);
 
-  /* Create signal parameters */
-  g_variant_builder_init (&builder, G_VARIANT_TYPE_TUPLE);
-  g_variant_builder_add_value (&builder, g_variant_new_string (id));
-  g_variant_builder_add_value (&builder, g_variant_new_string (pspec->name));
-  g_variant_builder_add_value (&builder, g_variant_new_variant (variant));
-
   /* Emit D-Bus signal */
-  clippy_emit_signal (clip, "ObjectNotify",
-                      g_variant_builder_end (&builder),
-                      NULL);
+  clippy_emit_signal (clip,
+                      "ObjectNotify",
+                      "(ssv)",
+                      id,
+                      pspec->name,
+                      g_variant_new_variant (variant));
 }
 
 static Clippy *
