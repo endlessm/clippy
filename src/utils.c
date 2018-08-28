@@ -238,8 +238,6 @@ variant_new_value (const GValue *value)
       const gchar *string = g_value_get_string (value);
       return g_variant_new_string (string ? string : "");
     }
-  else if (type == G_TYPE_OBJECT)
-    return g_variant_new_string (object_get_name (g_value_get_object (value)));
   else if (type == G_TYPE_GTYPE)
     return g_variant_new_string (g_type_name (g_value_get_gtype (value)));
   else if (type == G_TYPE_VARIANT)
@@ -255,17 +253,27 @@ variant_new_value (const GValue *value)
       const gchar **strv = g_value_get_boxed (value);
       return g_variant_new_strv (strv, -1);
     }
+  else if (type == G_TYPE_OBJECT || g_type_is_a (type, G_TYPE_OBJECT))
+    {
+      const gchar *id = object_get_name (g_value_get_object (value));
+      return g_variant_new_string (id ? id : "");
+    }
 
   return NULL;
 }
 
 gboolean
-value_set_variant (GValue *value, GVariant *variant)
+value_set_variant (GValue *value, GVariant *variant, GApplication *app)
 {
   GType type = G_VALUE_TYPE (value);
 
   if (type == G_TYPE_GTYPE)
     g_value_set_gtype (value, g_type_from_name (g_variant_get_string (variant, NULL)));
+  else if (app && (type == G_TYPE_OBJECT || g_type_is_a (type, G_TYPE_OBJECT)))
+    {
+      const gchar *object = g_variant_get_string (variant, NULL);
+      g_value_set_object (value, app_get_object (app, object, NULL));
+    }
   else
     {
       g_auto (GValue) gvalue = G_VALUE_INIT;

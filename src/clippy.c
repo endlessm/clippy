@@ -231,7 +231,7 @@ clippy_set (Clippy       *clip,
     return;
 
   g_value_init (&gvalue, pspec->value_type);
-  value_set_variant (&gvalue, variant);
+  value_set_variant (&gvalue, variant, clip->app);
 
   g_object_set_property (gobject, property, &gvalue);
 }
@@ -345,7 +345,7 @@ clippy_emit (Clippy       *clip,
 
       variant = g_variant_get_child_value (params, i+1);
       g_value_init (val, query.param_types[i]);
-      value_set_variant (val, variant);
+      value_set_variant (val, variant, clip->app);
     }
 
   /* Setup return value */

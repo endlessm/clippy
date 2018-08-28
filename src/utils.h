@@ -72,6 +72,7 @@ gboolean     app_get_object_info (GApplication *app,
 GVariant    *variant_new_value   (const GValue *value);
 
 gboolean     value_set_variant   (GValue       *value,
-                                  GVariant     *variant);
+                                  GVariant     *variant,
+                                  GApplication *app);
 
 G_END_DECLS
