@@ -259,7 +259,7 @@ variant_new_value (const GValue *value)
       return g_variant_new_string (id ? id : "");
     }
 
-  return NULL;
+  return g_variant_new_string ("");
 }
 
 gboolean

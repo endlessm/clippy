@@ -99,14 +99,7 @@ signal_closure_marshall (GClosure     *closure,
       
   /* Add extra parameters (including instance) */
   for (i = 0; i < n_param_values; i++)
-    {
-      GVariant *variant = variant_new_value (&param_values[i]);
-          
-      if (!variant)
-        variant = g_variant_new_string ("");
-
-      g_variant_builder_add_value (&builder, variant);
-    }
+    g_variant_builder_add_value (&builder, variant_new_value (&param_values[i]));
 
   /* Emit D-Bus signal */
   clippy_emit_signal (clip,
@@ -114,23 +107,21 @@ signal_closure_marshall (GClosure     *closure,
                       "(ssv)",
                       g_signal_name (hint->signal_id),
                       hint->detail ? g_quark_to_string (hint->detail) : "",
-                      g_variant_new_variant (g_variant_builder_end (&builder)));
+                      g_variant_builder_end (&builder));
 }
 
 static void
 notify_closure_callback (GObject    *gobject,
                          GParamSpec *pspec,
-                         Clippy    *clip)
+                         Clippy     *clip)
 {
   const gchar *id  = object_get_name (gobject);
   g_auto (GValue) value = G_VALUE_INIT;
-  GVariant *variant;
 
   g_debug ("%s %s %s", __func__, id, pspec->name);
   
   g_value_init (&value, pspec->value_type);
   g_object_get_property (gobject, pspec->name, &value);
-  variant = variant_new_value (&value);
 
   /* Emit D-Bus signal */
   clippy_emit_signal (clip,
@@ -138,7 +129,7 @@ notify_closure_callback (GObject    *gobject,
                       "(ssv)",
                       id,
                       pspec->name,
-                      g_variant_new_variant (variant));
+                      variant_new_value (&value));
 }
 
 static Clippy *
