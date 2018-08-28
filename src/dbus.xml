@@ -18,33 +18,92 @@
   Author: Juan Pablo Ugarte <ugarte@endlessm.com>
  -->
 <node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+
+<!--
+  com.endlessm.Clippy:
+  @short_description: Generic interface to interact with Gtk applications
+
+  This interface exposes Gtk applications internals for scripting engines or
+  others applications to interact with and implement interactive lessons or
+  tutorials with the real applications.
+-->
   <interface name='com.endlessm.Clippy'>
 
     <!-- Methods -->
+
+    <!--
+      Highlight:
+      @object: Object id. (Widget name or buildable id)
+
+      Highlights a widget in the UI by adding a 'highlight' CSS class to it.
+      @object must be accessible from the widget hierarchy and supports the dot
+      (.) property access operator.
+      For example you can access the parent of a widget with 'widget.parent'
+    -->
     <method name='Highlight'>
       <arg type='s' name='object' />
     </method>
 
+    <!--
+      Clear:
+
+      Clears the highlighted widget by removing the 'highlight' CSS class.
+    -->
     <method name='Clear' />
 
+    <!--
+      Set:
+      @object: Object id. (Widget name or buildable id)
+      @property: Name of the property to set.
+      @value: Property value, wrapped in a variant.
+
+      Generic setter function for any object property.
+    -->
     <method name='Set'>
       <arg type='s' name='object' />
       <arg type='s' name='property' />
       <arg type='v' name='value' />
     </method>
 
+    <!--
+      Get:
+      @object: Object id. (Widget name or buildable id)
+      @property: Name of the property to get.
+      @value: Property value, wrapped in a variant.
+
+      Generic getter function for any object property.
+    -->
     <method name='Get'>
       <arg type='s' name='object' />
       <arg type='s' name='property' />
       <arg type='v' name='value' direction='out'/>
     </method>
 
+    <!--
+      Connect:
+      @object: Object id. (widget name or buildable id)
+      @signal: Name of the signal to connect to.
+      @detail: Signal detail or empty string
+
+      Connects to any object signal including notify signal.
+      After connection 'ObjectSignal' or 'ObjectNotify' will be emited
+      over DBus each time the signal is emited by the object.
+    -->
     <method name='Connect'>
       <arg type='s' name='object' />
       <arg type='s' name='signal' />
       <arg type='s' name='detail' />
     </method>
 
+    <!--
+      Emit:
+      @signal: Name of the signal to emit
+      @detail: Detail of the signal to emit or empty string
+      @params: Signal parameters tuple, wrapped in a variant.
+
+      Emits any action signal on the object instance specified in the first
+      @params tuple parameter.
+    -->
     <method name='Emit'>
       <arg type='s' name='signal' />
       <arg type='s' name='detail' />
@@ -52,15 +111,40 @@
     </method>
 
     <!-- Properties -->
-    <property type='s' name='Css' access='write'/>
+
+    <!--
+      Css:
+
+      Sets a custom CSS on the default Gdk screen.
+      Keep in mind that Highlight method adds a 'highlight' CSS class
+    -->
+    <property type='s' name='Css' access='write' />
 
     <!-- Signals -->
+
+    <!--
+      ObjectNotify:
+      @object: Object id. (Widget name or buildable id)
+      @property: Name of the property that changed.
+      @value: Property value, wrapped in a variant.
+
+      Signal emited after a property value changed.
+    -->
     <signal name='ObjectNotify'>
       <arg type='s' name='object' />
       <arg type='s' name='property' />
       <arg type='v' name='value' />
     </signal>
 
+    <!--
+      ObjectSignal:
+      @signal: Name of the signal.
+      @detail: Detail of the signal or empty string
+      @params: Signal parameters tuple, wrapped in a variant.
+
+      Signal emited for any signal previously connected with Connect method.
+      The instance is the first parameter in the @params tuple.
+    -->
     <signal name='ObjectSignal'>
       <arg type='s' name='signal' />
       <arg type='s' name='detail' />

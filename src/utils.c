@@ -88,7 +88,7 @@ app_get_object (GApplication *app, const gchar *name, GError **error)
   else
     toplevels = gdk_screen_get_toplevel_windows (gdk_screen_get_default ());
 
-  /* name can include properties dereferences */
+  /* name can have dot property access operator */
   tokens = g_strsplit (name, ".", -1);
   data.name = tokens[0];
 
