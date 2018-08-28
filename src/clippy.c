@@ -294,20 +294,24 @@ clippy_connect (Clippy       *clip,
 
 static void
 clippy_emit (Clippy       *clip,
-             const gchar  *object,
              const gchar  *signal,
              const gchar  *detail,
              GVariant     *params,
              GError      **error)
 {
   g_auto (GValue) retval = G_VALUE_INIT;
+  g_autoptr (GVariant) variant = NULL;
   g_autoptr (GArray) values = NULL;
   GValue *instance_and_params;
+  const gchar *object;
   GSignalQuery query;
   GObject *gobject;
   guint id, i;
 
-  if (app_get_object_info (clip->app, object, NULL, signal,
+  if (!params ||
+      !(variant = g_variant_get_child_value (params, 0)) ||
+      !(object = g_variant_get_string (variant, NULL)) ||
+      app_get_object_info (clip->app, object, NULL, signal,
                            &gobject, NULL, &id, error))
     return;
 
@@ -325,9 +329,7 @@ clippy_emit (Clippy       *clip,
            query.n_params,
            (params) ? g_variant_n_children (params) : 0);
 
-  if (query.return_type && query.return_type != G_TYPE_NONE)
-    g_value_init (&retval, query.return_type);
-  
+  /* Create values array */
   values = g_array_new (FALSE, TRUE, sizeof (GValue));
   g_array_set_size (values, query.n_params + 1);
   g_array_set_clear_func (values, (GDestroyNotify) g_value_unset);
@@ -339,12 +341,16 @@ clippy_emit (Clippy       *clip,
   /* Set parameters */
   for (i = 0; i < query.n_params; i++)
     {
-      g_autoptr(GVariant) variant = g_variant_get_child_value (params, i);
-      GValue *val = &g_array_index (values, GValue, (i+1));
+      GValue *val = &g_array_index (values, GValue, i+1);
 
+      variant = g_variant_get_child_value (params, i+1);
       g_value_init (val, query.param_types[i]);
       value_set_variant (val, variant);
     }
+
+  /* Setup return value */
+  if (query.return_type && query.return_type != G_TYPE_NONE)
+    g_value_init (&retval, query.return_type);
 
   /* Emit signal */
   g_signal_emitv (instance_and_params, id, g_quark_try_string (detail), &retval);
@@ -399,11 +405,11 @@ clippy_method_call (GDBusConnection       *connection,
     }
   else if (g_strcmp0 (method_name, "Emit") == 0)
     {
-      g_autofree gchar *object, *signal, *detail;
+      g_autofree gchar *signal, *detail;
       g_autoptr(GVariant) params = NULL;
 
-      g_variant_get (parameters, "(sssv)", &object, &signal, &detail, &params);
-      clippy_emit (clip, object, signal, detail, params, &error);
+      g_variant_get (parameters, "(ssv)", &signal, &detail, &params);
+      clippy_emit (clip, signal, detail, params, &error);
     }
 
   if (error)

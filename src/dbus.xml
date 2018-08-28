@@ -46,7 +46,6 @@
     </method>
 
     <method name='Emit'>
-      <arg type='s' name='object' />
       <arg type='s' name='signal' />
       <arg type='s' name='detail' />
       <arg type='v' name='params' />
