@@ -19,6 +19,7 @@
  * Author: Juan Pablo Ugarte <ugarte@endlessm.com>
  */
 
+#include <gmodule.h>
 #include <gtk/gtk.h>
 #include "utils.h"
 
@@ -459,8 +460,8 @@ clippy_idle (gpointer user_data)
   return G_SOURCE_REMOVE;
 }
 
-__attribute__((constructor))
-void clippy_init (void)
+G_MODULE_EXPORT void
+gtk_module_init(gint *argc, gchar ***argv)
 {
   GDBusNodeInfo *info;
   GError *error = NULL;
@@ -483,3 +484,8 @@ void clippy_init (void)
     g_debug ("%s %s", __func__, error->message);
 }
 
+G_MODULE_EXPORT const gchar*
+g_module_check_init(GModule *module) {
+  g_module_make_resident(module);
+  return NULL;
+}
