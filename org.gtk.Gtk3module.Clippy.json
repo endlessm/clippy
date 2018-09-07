@@ -1,0 +1,25 @@
+{
+  "id": "org.gtk.Gtk3module.Clippy",
+  "branch": "3.28",
+  "runtime": "org.gnome.Platform",
+  "build-extension": true,
+  "sdk": "org.gnome.Sdk",
+  "runtime-version": "3.28",
+  "appstream-compose": false,
+  "separate-locales": false,
+  "modules": [
+    {
+      "name": "clippy",
+      "buildsystem": "meson",
+      "config-opts": [
+        "-Dgtk-modules-path=/usr/lib/gtk-3.0/3.0.0/Clippy/modules"
+      ],
+      "sources": [
+        {
+            "type": "dir",
+            "path": "."
+        }
+      ]
+    }
+  ]
+}
