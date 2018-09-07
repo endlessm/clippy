@@ -1,0 +1,4 @@
+option('gtk-modules-path',
+       type: 'string',
+       description: 'override where the clippy module is installed'
+)
