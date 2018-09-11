@@ -41,21 +41,17 @@ typedef enum
 GQuark clippy_quark (void);
 #define CLIPPY_ERROR clippy_quark()
 
-#define CLIPPY_ERROR_SET(code,format,...) \
-  if (error) \
-    *error = g_error_new (CLIPPY_ERROR, code, format, __VA_ARGS__)
-
-#define clippy_return_if_fail(expr,code,format,...) \
+#define clippy_return_if_fail(expr,err,code,format,...) \
   if (!(expr)) \
     { \
-      CLIPPY_ERROR_SET (code, format, __VA_ARGS__); \
+      g_set_error (err, CLIPPY_ERROR, code, format, __VA_ARGS__); \
       return; \
     }
 
-#define clippy_return_val_if_fail(expr,val,code,format,...) \
+#define clippy_return_val_if_fail(expr,val,err,code,format,...) \
   if (!(expr)) \
     { \
-      CLIPPY_ERROR_SET (code, format, __VA_ARGS__); \
+      g_set_error (err, CLIPPY_ERROR, code, format, __VA_ARGS__); \
       return val; \
     }
 

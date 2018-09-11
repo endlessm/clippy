@@ -239,7 +239,7 @@ clippy_highlight (Clippy       *clip,
     return;
 
   clippy_return_if_fail (GTK_IS_WIDGET (gobject),
-                         CLIPPY_NOT_A_WIDGET,
+                         error, CLIPPY_NOT_A_WIDGET,
                          "Object '%s' of type %s is not a GtkWidget",
                          object,
                          G_OBJECT_TYPE_NAME (gobject));
@@ -320,7 +320,7 @@ clippy_message (Clippy       *clip,
         return;
 
       clippy_return_if_fail (GTK_IS_WIDGET (gobject),
-                             CLIPPY_NOT_A_WIDGET,
+                             error, CLIPPY_NOT_A_WIDGET,
                              "Object '%s' of type %s is not a GtkWidget",
                              relative_to,
                              G_OBJECT_TYPE_NAME (gobject));
@@ -368,7 +368,7 @@ clippy_message_clear (Clippy *clip, const gchar *id, GError **error)
   GtkWidget *popover;
 
   clippy_return_if_fail ((popover = g_hash_table_lookup (clip->messages, id)),
-                         CLIPPY_WRONG_MSG_ID,
+                         error, CLIPPY_WRONG_MSG_ID,
                          "Message id '%s' not found",
                          id);
 
@@ -446,7 +446,7 @@ clippy_connect (Clippy       *clip,
   
   if (notify)
     clippy_return_if_fail (quark,
-                           CLIPPY_NO_DETAIL,
+                           error, CLIPPY_NO_DETAIL,
                            "Notify signal for object '%s' requieres detail (property)",
                            object);
   
@@ -481,7 +481,7 @@ clippy_emit (Clippy       *clip,
 
   /* We only support emiting action signals! */
   clippy_return_if_fail (query.signal_flags & G_SIGNAL_ACTION,
-                         CLIPPY_WRONG_SIGNAL_TYPE,
+                         error, CLIPPY_WRONG_SIGNAL_TYPE,
                          "Can not emit signal '%s' from object '%s' of type %s because is not an action signal",
                          signal, object, G_OBJECT_TYPE_NAME (gobject));
 
