@@ -34,6 +34,7 @@
     <!--
       Highlight:
       @object: Object id. (Widget name or buildable id)
+      @timeout: time to highlight in milliseconds or 0 for infinite
 
       Highlights a widget in the UI by adding a 'highlight' CSS class to it.
       @object must be accessible from the widget hierarchy and supports the dot
@@ -42,14 +43,46 @@
     -->
     <method name='Highlight'>
       <arg type='s' name='object' />
+      <arg type='u' name='timeout' />
     </method>
 
     <!--
-      Clear:
+      Unhighlight:
 
       Clears the highlighted widget by removing the 'highlight' CSS class.
     -->
-    <method name='Clear' />
+    <method name='Unhighlight'>
+      <arg type='s' name='object' />
+    </method>
+
+    <!--
+      Message:
+      @id: Message id
+      @text: The message to show
+      @image: icon name or image uri to show or empty string
+      @relative-to: Object id. (Widget name or buildable id)
+      @timeout: time to show the message in milliseconds or 0 for infinite
+
+      Shows a message in a popup relative to @relative-to for @timeout milliseconds.
+      If @timeout is 0, then the message will be shown until the user dismiss it.
+    -->
+    <method name='Message'>
+      <arg type='s' name='id' />
+      <arg type='s' name='text' />
+      <arg type='s' name='image' />
+      <arg type='s' name='relative-to' />
+      <arg type='u' name='timeout' />
+    </method>
+
+    <!--
+      MessageClear:
+      @id: Message id
+
+      Dismiss message popover
+    -->
+    <method name='MessageClear'>
+      <arg type='s' name='id' />
+    </method>
 
     <!--
       Set:
@@ -149,6 +182,16 @@
       <arg type='s' name='signal' />
       <arg type='s' name='detail' />
       <arg type='v' name='params' />
+    </signal>
+
+    <!--
+      MessageDone:
+      @id: Message id
+
+      Signal emited when a message is dismissed or closed
+    -->
+    <signal name='MessageDone'>
+      <arg type='s' name='id' />
     </signal>
   </interface>
 </node>

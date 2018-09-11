@@ -107,7 +107,7 @@ app_get_object (GApplication *app, const gchar *name, GError **error)
     g_list_free (toplevels);
 
   clippy_return_val_if_fail (data.object,
-                             NULL, CLIPPY_NO_OBJECT,
+                             NULL, error, CLIPPY_NO_OBJECT,
                              "Object '%s' not found",
                              tokens[0]);
 
@@ -125,19 +125,19 @@ app_get_object (GApplication *app, const gchar *name, GError **error)
 
           /* Check the property exists, is readable and object type */
           clippy_return_val_if_fail (pspec,
-                                     NULL, CLIPPY_NO_OBJECT,
+                                     NULL, error, CLIPPY_NO_OBJECT,
                                      "Object '%s' has no property '%s'",
                                      tokens[i-1],
                                      tokens[i]);
 
           clippy_return_val_if_fail ((pspec->flags & G_PARAM_READABLE),
-                                     NULL, CLIPPY_NO_OBJECT,
+                                     NULL, error, CLIPPY_NO_OBJECT,
                                      "Can not read property '%s' from object '%s'",
                                      tokens[i],
                                      tokens[i-1]);
 
           clippy_return_val_if_fail (g_type_is_a (pspec->value_type, G_TYPE_OBJECT),
-                                     NULL, CLIPPY_NO_OBJECT,
+                                     NULL, error, CLIPPY_NO_OBJECT,
                                      "Property '%s' from object '%s' is not an object type",
                                      tokens[i],
                                      tokens[i-1]);
@@ -145,7 +145,7 @@ app_get_object (GApplication *app, const gchar *name, GError **error)
           g_object_get (objval, tokens[i], &objval, NULL);
 
           clippy_return_val_if_fail (objval,
-                                     NULL, CLIPPY_NO_OBJECT,
+                                     NULL, error, CLIPPY_NO_OBJECT,
                                      "Object '%s.%s' property is not set",
                                      tokens[i-1],
                                      tokens[i]);
@@ -187,14 +187,14 @@ app_get_object_info (GApplication *app,
   if (property && pspec)
     clippy_return_val_if_fail (*pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (*gobject),
                                                                       property),
-                               TRUE, CLIPPY_NO_PROPERTY,
+                               TRUE, error, CLIPPY_NO_PROPERTY,
                                "No property '%s' found on object '%s'",
                                property,
                                object);
 
   if (signal && signal_id)
     clippy_return_val_if_fail (*signal_id = g_signal_lookup (signal, G_OBJECT_TYPE (*gobject)),
-                               TRUE, CLIPPY_NO_SIGNAL,
+                               TRUE, error, CLIPPY_NO_SIGNAL,
                                "Object '%s' of type %s has no signal '%s'",
                                object,
                                G_OBJECT_TYPE_NAME (*gobject),
