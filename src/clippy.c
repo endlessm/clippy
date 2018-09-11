@@ -564,12 +564,10 @@ clippy_method_call (GDBusConnection       *connection,
   else if (g_strcmp0 (method_name, "Set") == 0)
     {
       g_autofree gchar *object, *property;
-      GVariant *value;
+      g_autoptr (GVariant) value = NULL;
 
       g_variant_get (parameters, "(ssv)", &object, &property, &value);
       clippy_set (clip, object, property, value, &error);
-
-      g_variant_unref (value);
     }
   else if (g_strcmp0 (method_name, "Get") == 0)
     {
