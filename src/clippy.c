@@ -24,6 +24,7 @@
 
 #define HIGHLIGHT_CLASS "highlight"
 #define DBUS_IFACE      "com.endlessm.Clippy"
+#define CLIPPY_TIMEOUT_KEY "ClippyTimeOut"
 
 static GDBusInterfaceInfo *iface_info = NULL;
 
@@ -31,7 +32,7 @@ typedef struct
 {
   GApplication   *app;      /* Default Application */
   GtkCssProvider *provider; /* Clippy Css provider */
-  GtkWidget      *widget;   /* Highlighted widget */
+  GHashTable     *widgets;  /* Highlighted widget */
 
   GHashTable     *messages; /* ShowMessage GtkPopover table */
 
@@ -144,6 +145,12 @@ clippy_new (GApplication *app)
                                              GTK_STYLE_PROVIDER (clip->provider),
                                              GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 
+  /* id -> GtkWidget table */
+  clip->widgets = g_hash_table_new_full (g_str_hash,
+                                         g_str_equal,
+                                         g_free,
+                                         g_object_unref);
+
   /* Message id -> GtkPopover table */
   clip->messages = g_hash_table_new_full (g_str_hash,
                                           g_str_equal,
@@ -166,11 +173,10 @@ clippy_new (GApplication *app)
 static void
 clippy_free (Clippy *clip)
 {
-  g_clear_object (&clip->widget);
-
   gtk_style_context_remove_provider_for_screen (gdk_screen_get_default (),
                                                 GTK_STYLE_PROVIDER (clip->provider));
   g_clear_object (&clip->provider);
+  g_clear_pointer (&clip->widgets, g_hash_table_unref);
   g_clear_pointer (&clip->messages, g_hash_table_unref);
   g_clear_pointer (&clip->signal_closure, g_closure_unref);
   g_clear_pointer (&clip->notify_closure, g_closure_unref);
@@ -178,23 +184,56 @@ clippy_free (Clippy *clip)
 }
 
 static void
-clippy_clear (Clippy *clip)
+clippy_timeout_add (GObject     *object,
+                    guint        timeout,
+                    GSourceFunc  function)
 {
-  if (clip->widget)
-    gtk_style_context_remove_class (gtk_widget_get_style_context (clip->widget),
-                                    HIGHLIGHT_CLASS);
-  g_clear_object (&clip->widget);
+  gpointer old_id;
+  guint id;
+
+  if (!timeout)
+    return;
+
+  /* Clear old timeout */
+  if ((old_id = g_object_get_data (object, CLIPPY_TIMEOUT_KEY)))
+    g_source_remove (GPOINTER_TO_UINT (old_id));
+
+  /* Add new timeout */
+  id = g_timeout_add (timeout, function, object);
+
+  /* Save new timeout */
+  g_object_set_data (object, CLIPPY_TIMEOUT_KEY, GUINT_TO_POINTER (id));
 }
 
 static void
-clippy_highlight (Clippy *clip, const gchar *object, GError **error)
+clippy_timeout_remove (GObject *object, gboolean clear_source)
+{
+  gpointer timeout;
+
+  if (clear_source && (timeout = g_object_get_data (object, CLIPPY_TIMEOUT_KEY)))
+    g_source_remove (GPOINTER_TO_UINT (timeout));
+
+  g_object_set_data (object, CLIPPY_TIMEOUT_KEY, NULL);
+}
+
+static gboolean
+clippy_highlight_clear (gpointer data)
+{
+  clippy_timeout_remove (data, FALSE);
+  gtk_style_context_remove_class (gtk_widget_get_style_context (data),
+                                  HIGHLIGHT_CLASS);
+  return G_SOURCE_REMOVE;
+}
+
+static void
+clippy_highlight (Clippy       *clip,
+                  const gchar  *object,
+                  guint         timeout,
+                  GError      **error)
 {
   GObject *gobject;
 
-  /* Dehighlight previous widget */
-  clippy_clear (clip);
- 
-  /* Find and highlight widget */
+  /* Find widget */
   if (app_get_object_info (clip->app, object, NULL, NULL,
                            &gobject, NULL, NULL, error))
     return;
@@ -204,26 +243,41 @@ clippy_highlight (Clippy *clip, const gchar *object, GError **error)
                          "Object '%s' of type %s is not a GtkWidget",
                          object,
                          G_OBJECT_TYPE_NAME (gobject));
-  
-  clip->widget = (GtkWidget *) g_object_ref (gobject);
 
-  g_debug ("%s %s %p", __func__, object, clip->widget);
-  
-  gtk_style_context_add_class (gtk_widget_get_style_context (clip->widget),
+  /* Insert widget in table */
+  g_hash_table_insert (clip->widgets, g_strdup (object), g_object_ref (gobject));
+
+  g_debug ("%s %s %p", __func__, object, gobject);
+
+  /* Highlight */
+  gtk_style_context_add_class (gtk_widget_get_style_context (GTK_WIDGET (gobject)),
                                HIGHLIGHT_CLASS);
+
+  clippy_timeout_add (gobject, timeout, clippy_highlight_clear);
+}
+
+static void
+clippy_unhighlight (Clippy *clip, const gchar *object, GError **error)
+{
+  GObject *gobject;
+
+  if (app_get_object_info (clip->app, object, NULL, NULL,
+                           &gobject, NULL, NULL, error))
+    return;
+
+  clippy_timeout_remove (gobject, TRUE);
+
+  gtk_style_context_remove_class (gtk_widget_get_style_context (GTK_WIDGET (gobject)),
+                                  HIGHLIGHT_CLASS);
+  g_hash_table_remove (clip->widgets, object);
 }
 
 static void
 on_popover_closed (GtkPopover *popover, Clippy *clip)
 {
-  gpointer timeout;
   const gchar *id;
 
-  if ((timeout = g_object_get_data (G_OBJECT (popover), "ClippyTimeOut")))
-    {
-      g_source_remove (GPOINTER_TO_UINT (timeout));
-      g_object_set_data (G_OBJECT (popover), "ClippyTimeOut", NULL);
-    }
+  clippy_timeout_remove (G_OBJECT (popover), TRUE);
 
   if ((id = gtk_widget_get_name (GTK_WIDGET (popover))))
     {
@@ -235,7 +289,7 @@ on_popover_closed (GtkPopover *popover, Clippy *clip)
 static gboolean
 clippy_popover_clear (gpointer data)
 {
-  g_object_set_data (data, "ClippyTimeOut", NULL);
+  clippy_timeout_remove (data, FALSE);
   gtk_popover_popdown (data);
   return G_SOURCE_REMOVE;
 }
@@ -302,19 +356,7 @@ clippy_message (Clippy       *clip,
       gtk_box_pack_start (GTK_BOX (box), label, TRUE, TRUE, 0);
     }
 
-  if (timeout)
-    {
-      guint id = g_timeout_add (timeout, clippy_popover_clear, popover);
-      gpointer old_id;
-
-      /* Clear old timeout */
-      if ((old_id = g_object_get_data (G_OBJECT (popover), "ClippyTimeOut")))
-        g_source_remove (GPOINTER_TO_UINT (old_id));
-
-      /* Save new timeout */
-      g_object_set_data (G_OBJECT (popover), "ClippyTimeOut",
-                         GUINT_TO_POINTER (id));
-    }
+  clippy_timeout_add (G_OBJECT(popover), timeout, clippy_popover_clear);
 
   gtk_widget_show_all (box);
   gtk_popover_popup (GTK_POPOVER (popover));
@@ -493,12 +535,18 @@ clippy_method_call (GDBusConnection       *connection,
   if (g_strcmp0 (method_name, "Highlight") == 0)
     {
       g_autofree gchar *object;
+      guint timeout;
+
+      g_variant_get (parameters, "(su)", &object, &timeout);
+      clippy_highlight (clip, object, timeout, &error);
+    }
+  else if (g_strcmp0 (method_name, "Unhighlight") == 0)
+    {
+      g_autofree gchar *object;
 
       g_variant_get (parameters, "(s)", &object);
-      clippy_highlight (clip, object, &error);
+      clippy_unhighlight (clip, object, &error);
     }
-  else if (g_strcmp0 (method_name, "Clear") == 0)
-    clippy_clear (clip);
   else if (g_strcmp0 (method_name, "Message") == 0)
     {
       g_autofree gchar *id, *text, *image, *relative_to;

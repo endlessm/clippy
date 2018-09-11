@@ -9,10 +9,13 @@ function run ()
 LD_PRELOAD=./libclippy-0.1.so G_MESSAGES_DEBUG=1 gedit&
 
 sleep 1
-run com.endlessm.Clippy.Highlight open_button
+run com.endlessm.Clippy.Highlight open_button 500
 
 sleep 1
-run com.endlessm.Clippy.Clear
+run com.endlessm.Clippy.Highlight open_button 0
+
+sleep 2
+run com.endlessm.Clippy.Unhighlight open_button
 
 run com.endlessm.Clippy.Message testmsg "You can show messages that disapear automatically" "dialog-information" open_button 1500
 

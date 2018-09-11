@@ -34,6 +34,7 @@
     <!--
       Highlight:
       @object: Object id. (Widget name or buildable id)
+      @timeout: time to highlight in milliseconds or 0 for infinite
 
       Highlights a widget in the UI by adding a 'highlight' CSS class to it.
       @object must be accessible from the widget hierarchy and supports the dot
@@ -42,14 +43,17 @@
     -->
     <method name='Highlight'>
       <arg type='s' name='object' />
+      <arg type='u' name='timeout' />
     </method>
 
     <!--
-      Clear:
+      Unhighlight:
 
       Clears the highlighted widget by removing the 'highlight' CSS class.
     -->
-    <method name='Clear' />
+    <method name='Unhighlight'>
+      <arg type='s' name='object' />
+    </method>
 
     <!--
       Message:
