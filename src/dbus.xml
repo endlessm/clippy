@@ -52,6 +52,35 @@
     <method name='Clear' />
 
     <!--
+      Message:
+      @id: Message id
+      @text: The message to show
+      @image: icon name or image uri to show or empty string
+      @relative-to: Object id. (Widget name or buildable id)
+      @timeout: time to show the message in milliseconds or 0 for infinite
+
+      Shows a message in a popup relative to @relative-to for @timeout milliseconds.
+      If @timeout is 0, then the message will be shown until the user dismiss it.
+    -->
+    <method name='Message'>
+      <arg type='s' name='id' />
+      <arg type='s' name='text' />
+      <arg type='s' name='image' />
+      <arg type='s' name='relative-to' />
+      <arg type='u' name='timeout' />
+    </method>
+
+    <!--
+      MessageClear:
+      @id: Message id
+
+      Dismiss message popover
+    -->
+    <method name='MessageClear'>
+      <arg type='s' name='id' />
+    </method>
+
+    <!--
       Set:
       @object: Object id. (Widget name or buildable id)
       @property: Name of the property to set.
@@ -149,6 +178,16 @@
       <arg type='s' name='signal' />
       <arg type='s' name='detail' />
       <arg type='v' name='params' />
+    </signal>
+
+    <!--
+      MessageDone:
+      @id: Message id
+
+      Signal emited when a message is dismissed or closed
+    -->
+    <signal name='MessageDone'>
+      <arg type='s' name='id' />
     </signal>
   </interface>
 </node>

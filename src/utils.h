@@ -34,7 +34,8 @@ typedef enum
   CLIPPY_NO_SIGNAL,
   CLIPPY_NO_DETAIL,
   CLIPPY_NOT_A_WIDGET,
-  CLIPPY_WRONG_SIGNAL_TYPE
+  CLIPPY_WRONG_SIGNAL_TYPE,
+  CLIPPY_WRONG_MSG_ID
 } ClippyError;
 
 GQuark clippy_quark (void);
