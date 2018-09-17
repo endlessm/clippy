@@ -232,7 +232,7 @@ variant_new_value (const GValue *value)
   else if (type == G_TYPE_FLOAT)
     return g_variant_new_double (g_value_get_float (value));
   else if (type == G_TYPE_DOUBLE)
-    return g_variant_new_double (g_value_get_boolean (value));
+    return g_variant_new_double (g_value_get_double (value));
   else if (type == G_TYPE_STRING)
     {
       const gchar *string = g_value_get_string (value);
