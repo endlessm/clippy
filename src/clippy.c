@@ -118,7 +118,7 @@ notify_closure_callback (GObject    *gobject,
                          Clippy     *clip)
 {
   const gchar *id  = object_get_name (gobject);
-  g_auto (GValue) value = G_VALUE_INIT;
+  g_auto(GValue) value = G_VALUE_INIT;
 
   g_debug ("%s %s %s", __func__, id, pspec->name);
   
@@ -383,7 +383,7 @@ clippy_set (Clippy       *clip,
             GVariant     *variant,
             GError      **error)
 {
-  g_auto (GValue) gvalue = G_VALUE_INIT;
+  g_auto(GValue) gvalue = G_VALUE_INIT;
   GObject *gobject;
   GParamSpec *pspec;
   
@@ -406,7 +406,7 @@ clippy_get (Clippy       *clip,
             GVariant    **return_value,
             GError      **error)
 {
-  g_auto (GValue) gvalue = G_VALUE_INIT;
+  g_auto(GValue) gvalue = G_VALUE_INIT;
   GObject *gobject;
   GParamSpec *pspec;
   
@@ -462,9 +462,9 @@ clippy_emit (Clippy       *clip,
              GVariant     *params,
              GError      **error)
 {
-  g_auto (GValue) retval = G_VALUE_INIT;
-  g_autoptr (GVariant) variant = NULL;
-  g_autoptr (GArray) values = NULL;
+  g_auto(GValue) retval = G_VALUE_INIT;
+  g_autoptr(GVariant) variant = NULL;
+  g_autoptr(GArray) values = NULL;
   GValue *instance_and_params;
   const gchar *object;
   GSignalQuery query;
@@ -535,7 +535,7 @@ clippy_method_call (GDBusConnection       *connection,
 
   if (g_strcmp0 (method_name, "Highlight") == 0)
     {
-      g_autofree gchar *object;
+      g_autofree gchar *object = NULL;
       guint timeout;
 
       g_variant_get (parameters, "(su)", &object, &timeout);
@@ -543,14 +543,14 @@ clippy_method_call (GDBusConnection       *connection,
     }
   else if (g_strcmp0 (method_name, "Unhighlight") == 0)
     {
-      g_autofree gchar *object;
+      g_autofree gchar *object = NULL;
 
       g_variant_get (parameters, "(s)", &object);
       clippy_unhighlight (clip, object, &error);
     }
   else if (g_strcmp0 (method_name, "Message") == 0)
     {
-      g_autofree gchar *id, *text, *image, *relative_to;
+      g_autofree gchar *id = NULL, *text = NULL, *image = NULL, *relative_to = NULL;
       guint timeout;
 
       g_variant_get (parameters, "(ssssu)", &id, &text, &image, &relative_to, &timeout);
@@ -558,35 +558,35 @@ clippy_method_call (GDBusConnection       *connection,
     }
   if (g_strcmp0 (method_name, "MessageClear") == 0)
     {
-      g_autofree gchar *id;
+      g_autofree gchar *id = NULL;
       g_variant_get (parameters, "(s)", &id);
       clippy_message_clear (clip, id, &error);
     }
   else if (g_strcmp0 (method_name, "Set") == 0)
     {
-      g_autofree gchar *object, *property;
-      g_autoptr (GVariant) value = NULL;
+      g_autofree gchar *object = NULL, *property = NULL;
+      g_autoptr(GVariant) value = NULL;
 
       g_variant_get (parameters, "(ssv)", &object, &property, &value);
       clippy_set (clip, object, property, value, &error);
     }
   else if (g_strcmp0 (method_name, "Get") == 0)
     {
-      g_autofree gchar *object, *property;
+      g_autofree gchar *object = NULL, *property = NULL;
 
       g_variant_get (parameters, "(ss)", &object, &property);
       clippy_get (clip, object, property, &return_value, &error);
     }
   else if (g_strcmp0 (method_name, "Connect") == 0)
     {
-      g_autofree gchar *object, *signal, *detail;
+      g_autofree gchar *object = NULL, *signal = NULL, *detail = NULL;
 
       g_variant_get (parameters, "(sss)", &object, &signal, &detail);
       clippy_connect (clip, object, signal, detail, &error);
     }
   else if (g_strcmp0 (method_name, "Emit") == 0)
     {
-      g_autofree gchar *signal, *detail;
+      g_autofree gchar *signal = NULL, *detail = NULL;
       g_autoptr(GVariant) params = NULL;
 
       g_variant_get (parameters, "(ssv)", &signal, &detail, &params);

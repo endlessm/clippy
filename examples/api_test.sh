@@ -6,8 +6,6 @@ function run ()
   gdbus call --session --dest org.gnome.gedit --object-path /org/gnome/gedit --method "$@"
 }
 
-LD_PRELOAD=./libclippy-0.1.so G_MESSAGES_DEBUG=1 gedit&
-
 sleep 1
 run com.endlessm.Clippy.Highlight open_button 500
 

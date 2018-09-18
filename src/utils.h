@@ -72,4 +72,8 @@ gboolean     value_set_variant   (GValue       *value,
                                   GVariant     *variant,
                                   GApplication *app);
 
+void         str_replace_char    (gchar        *str,
+                                  gchar         a,
+                                  gchar         b);
+
 G_END_DECLS
