@@ -1,0 +1,5 @@
+[Context]
+filesystems=/var/lib/flatpak/app/com.endlessm.Clippy/current/active/files:ro;
+
+[Environment]
+GTK3_MODULES=/var/lib/flatpak/app/com.endlessm.Clippy/current/active/files/lib/libclippy-module.so
