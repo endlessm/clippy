@@ -1,6 +1,8 @@
 clippy_sources = [
   'utils.c',
   'clippy.c',
+  'clippy-js-proxy.c',
+  'webkit-marshal.c'
 ]
 
 gtk_name = 'gtk+-3.0'
@@ -38,3 +40,9 @@ clippy_lib = shared_module(
   install: true,
   install_dir: gtk_modules_path
 )
+
+# Internal dependency, for examples
+clippy_inc = include_directories('.')
+clippy_dep = declare_dependency(link_with: clippy_lib,
+                                include_directories: [ clippy_inc ],
+                                dependencies: [ clippy_deps ])

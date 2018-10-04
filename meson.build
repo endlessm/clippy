@@ -11,3 +11,4 @@ configure_file(
 
 subdir('data')
 subdir('src')
+subdir('examples')

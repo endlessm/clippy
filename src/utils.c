@@ -20,6 +20,8 @@
  */
 
 #include "utils.h"
+#include "clippy-js-proxy.h"
+#include "webkit-marshal.h"
 
 G_DEFINE_QUARK(clippy_error, clippy)
 
@@ -75,10 +77,10 @@ find_object_forall (GtkWidget *widget, gpointer user_data)
 static inline GObject *
 app_get_object (GApplication *app, const gchar *name, GError **error)
 {
+  gboolean const_toplevels = FALSE;
+  g_auto(GStrv) tokens = NULL;
   FindData data = { NULL, };
-  gboolean const_toplevels;
   GList *toplevels, *l;
-  g_auto(GStrv) tokens;
 
   if (!name)
     return NULL;
@@ -113,6 +115,7 @@ app_get_object (GApplication *app, const gchar *name, GError **error)
 
   if (tokens[1])
     {
+      GType webview_type = webkit_web_view_get_type ();
       GObject *objval = data.object;
       gint i;
 
@@ -122,6 +125,36 @@ app_get_object (GApplication *app, const gchar *name, GError **error)
 
           pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (objval),
                                                 tokens[i]);
+
+          /*
+           * Check if we are trying to access a JS object
+           */
+          if (pspec == NULL && webview_type &&
+              g_strcmp0 (tokens[i], "JSContext") == 0 &&
+              G_TYPE_CHECK_INSTANCE_TYPE ((objval), webview_type))
+            {
+              const gchar *js_object_name = tokens[i+1];
+              g_autofree gchar *key = NULL;
+              GObject *js_object;
+
+              clippy_return_val_if_fail (js_object_name != NULL,
+                                         NULL, error, CLIPPY_NO_OBJECT,
+                                         "Need to specify a JSContext object name for '%s'",
+                                         tokens[i-1]);
+
+              key = g_strconcat ("__Clippy_JSContext_", js_object_name, NULL);
+
+              if ((js_object = g_object_get_data (objval, key)))
+                  return js_object;
+
+              js_object = clippy_js_proxy_new (objval, js_object_name);
+              g_object_set_data_full (objval,
+                                      key,
+                                      js_object,
+                                      g_object_unref);
+
+              return js_object;
+            }
 
           /* Check the property exists, is readable and object type */
           clippy_return_val_if_fail (pspec,
@@ -276,11 +309,26 @@ value_set_variant (GValue *value, GVariant *variant, GApplication *app)
     }
   else
     {
-      g_auto (GValue) gvalue = G_VALUE_INIT;
+      g_auto(GValue) gvalue = G_VALUE_INIT;
       g_dbus_gvariant_to_gvalue (variant, &gvalue);
       g_value_transform (&gvalue, value);
     }
 
   return TRUE;
 }
+
+void
+str_replace_char (gchar *str, gchar a, gchar b)
+{
+  g_return_if_fail (str != NULL);
+
+  while (*str != 0)
+    {
+      if (*str == a)
+        *str = b;
+
+      str = g_utf8_next_char (str);
+    }
+}
+
 
