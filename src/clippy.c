@@ -25,13 +25,14 @@
 
 #define HIGHLIGHT_CLASS "highlight"
 #define DBUS_IFACE      "com.endlessm.Clippy"
+#define DBUS_OBJECT_PATH "/com/endlessm/Clippy"
 #define CLIPPY_TIMEOUT_KEY "ClippyTimeOut"
 
 static GDBusInterfaceInfo *iface_info = NULL;
 
 typedef struct
 {
-  GApplication   *app;      /* Default Application */
+  GDBusConnection *connection; /* DBus connection */
   GtkCssProvider *provider; /* Clippy Css provider */
   GHashTable     *widgets;  /* Highlighted widget */
 
@@ -52,9 +53,9 @@ clippy_emit_signal (Clippy      *clip,
   va_list params;
 
   va_start (params, format);
-  g_dbus_connection_emit_signal (g_application_get_dbus_connection (clip->app),
+  g_dbus_connection_emit_signal (clip->connection,
                                  NULL,
-                                 g_application_get_dbus_object_path (clip->app),
+                                 DBUS_OBJECT_PATH,
                                  DBUS_IFACE,
                                  signal_name,
                                  g_variant_new_va (format, NULL, &params),
@@ -135,11 +136,11 @@ notify_closure_callback (GObject    *gobject,
 }
 
 static Clippy *
-clippy_new (GApplication *app)
+clippy_new (GDBusConnection *connection)
 {
   Clippy *clip = g_new0 (Clippy, 1);
 
-  clip->app = app;
+  clip->connection = g_object_ref (connection);
   clip->provider = gtk_css_provider_new ();
   gtk_css_provider_load_from_resource (clip->provider, "/com/endlessm/clippy/style.css");
   gtk_style_context_add_provider_for_screen (gdk_screen_get_default (), 
@@ -176,6 +177,7 @@ clippy_free (Clippy *clip)
 {
   gtk_style_context_remove_provider_for_screen (gdk_screen_get_default (),
                                                 GTK_STYLE_PROVIDER (clip->provider));
+  g_clear_object (&clip->connection);
   g_clear_object (&clip->provider);
   g_clear_pointer (&clip->widgets, g_hash_table_unref);
   g_clear_pointer (&clip->messages, g_hash_table_unref);
@@ -235,7 +237,7 @@ clippy_highlight (Clippy       *clip,
   GObject *gobject;
 
   /* Find widget */
-  if (app_get_object_info (clip->app, object, NULL, NULL,
+  if (app_get_object_info (object, NULL, NULL,
                            &gobject, NULL, NULL, error))
     return;
 
@@ -262,7 +264,7 @@ clippy_unhighlight (Clippy *clip, const gchar *object, GError **error)
 {
   GObject *gobject;
 
-  if (app_get_object_info (clip->app, object, NULL, NULL,
+  if (app_get_object_info (object, NULL, NULL,
                            &gobject, NULL, NULL, error))
     return;
 
@@ -316,7 +318,7 @@ clippy_message (Clippy       *clip,
     {
       GObject *gobject;
 
-      if (app_get_object_info (clip->app, relative_to, NULL, NULL,
+      if (app_get_object_info (relative_to, NULL, NULL,
                                &gobject, NULL, NULL, error))
         return;
 
@@ -389,12 +391,12 @@ clippy_set (Clippy       *clip,
   
   g_debug ("%s %s %s", __func__, object, property);
   
-  if (app_get_object_info (clip->app, object, property, NULL,
+  if (app_get_object_info (object, property, NULL,
                            &gobject, &pspec, NULL, error))
     return;
 
   g_value_init (&gvalue, pspec->value_type);
-  value_set_variant (&gvalue, variant, clip->app);
+  value_set_variant (&gvalue, variant);
 
   g_object_set_property (gobject, property, &gvalue);
 }
@@ -412,7 +414,7 @@ clippy_get (Clippy       *clip,
   
   g_debug ("%s %s %s", __func__, object, property);
 
-  if (app_get_object_info (clip->app, object, property, NULL,
+  if (app_get_object_info (object, property, NULL,
                            &gobject, &pspec, NULL, error))
     return;
 
@@ -438,7 +440,7 @@ clippy_connect (Clippy       *clip,
 
   g_debug ("%s %s %s %s", __func__, object, signal, detail ? detail : "null");
 
-  if (app_get_object_info (clip->app, object, NULL, signal,
+  if (app_get_object_info (object, NULL, signal,
                            &gobject, NULL, &id, error))
     return;
 
@@ -474,7 +476,7 @@ clippy_emit (Clippy       *clip,
   if (!params ||
       !(variant = g_variant_get_child_value (params, 0)) ||
       !(object = g_variant_get_string (variant, NULL)) ||
-      app_get_object_info (clip->app, object, NULL, signal,
+      app_get_object_info (object, NULL, signal,
                            &gobject, NULL, &id, error))
     return;
 
@@ -508,7 +510,7 @@ clippy_emit (Clippy       *clip,
 
       variant = g_variant_get_child_value (params, i+1);
       g_value_init (val, query.param_types[i]);
-      value_set_variant (val, variant, clip->app);
+      value_set_variant (val, variant);
     }
 
   /* Setup return value */
@@ -623,30 +625,35 @@ clippy_set_property (GDBusConnection *connection,
   return TRUE;
 }
 
-static gboolean
-clippy_idle (gpointer user_data)
+static void
+register_clippy_iface (void)
 {
-  GApplication *app;
-  
-  if ((app = g_application_get_default ()) &&
-      g_application_get_is_registered (app))
+  const static GDBusInterfaceVTable vtable = {
+    clippy_method_call,
+    NULL,
+    clippy_set_property
+  };
+
+  g_autoptr(GError) error = NULL;
+  g_autoptr(GDBusConnection) connection = g_bus_get_sync (G_BUS_TYPE_SESSION,
+                                                          NULL,
+                                                          &error);
+  if (error)
     {
-      const static GDBusInterfaceVTable vtable = {
-        clippy_method_call,
-        NULL,
-        clippy_set_property
-      };
-      
-      g_dbus_connection_register_object (g_application_get_dbus_connection (app),
-                                         g_application_get_dbus_object_path (app),
-                                         iface_info,
-                                         &vtable,
-                                         clippy_new (app),
-                                         (GDestroyNotify) clippy_free,
-                                         NULL);
+      g_critical ("Failed to get a session bus connection: %s", error->message);
+      return;
     }
 
-  return G_SOURCE_REMOVE;
+  g_dbus_connection_register_object (connection,
+                                     DBUS_OBJECT_PATH,
+                                     iface_info,
+                                     &vtable,
+                                     clippy_new (connection),
+                                     (GDestroyNotify) clippy_free,
+                                     &error);
+
+  if (error)
+    g_critical ("Failed to register Clippy object on connection: %s", error->message);
 }
 
 G_MODULE_EXPORT void
@@ -665,9 +672,8 @@ gtk_module_init(gint *argc, gchar ***argv)
       g_assert (iface_info != NULL);
       g_dbus_interface_info_ref (iface_info);
       g_dbus_node_info_unref (info);
-      
-      /* Give the app a chance to initialize */
-      g_idle_add (clippy_idle, NULL);
+
+      register_clippy_iface ();
     }
   else
     g_debug ("%s %s", __func__, error->message);

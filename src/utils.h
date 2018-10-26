@@ -57,8 +57,7 @@ GQuark clippy_quark (void);
 
 const gchar *object_get_name     (GObject      *object);
 
-gboolean     app_get_object_info (GApplication *app,
-                                  const gchar  *object,
+gboolean     app_get_object_info (const gchar  *object,
                                   const gchar  *property,
                                   const gchar  *signal,
                                   GObject     **gobject,
@@ -69,8 +68,7 @@ gboolean     app_get_object_info (GApplication *app,
 GVariant    *variant_new_value   (const GValue *value);
 
 gboolean     value_set_variant   (GValue       *value,
-                                  GVariant     *variant,
-                                  GApplication *app);
+                                  GVariant     *variant);
 
 void         str_replace_char    (gchar        *str,
                                   gchar         a,
