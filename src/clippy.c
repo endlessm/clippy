@@ -443,7 +443,7 @@ clippy_connect (Clippy       *clip,
     return;
 
   notify = g_strcmp0 (signal, "notify") == 0;
-  quark = g_quark_try_string (detail);
+  quark = g_quark_from_string (detail);
   
   if (notify)
     clippy_return_if_fail (quark,

@@ -35,6 +35,9 @@ object_get_name (GObject *object)
 
   if (!object)
     return NULL;
+
+  if (CLIPPY_IS_JS_PROXY (object))
+    return g_object_get_data (object, "__Clippy_object_name_");
   
   if (GTK_IS_WIDGET (object) &&
       (name = gtk_widget_get_name ((GtkWidget *)object)) &&
@@ -148,6 +151,10 @@ app_get_object (GApplication *app, const gchar *name, GError **error)
                   return js_object;
 
               js_object = clippy_js_proxy_new (objval, js_object_name);
+              g_object_set_data_full (js_object,
+                                      "__Clippy_object_name_",
+                                      g_strdup (name),
+                                      g_free);
               g_object_set_data_full (objval,
                                       key,
                                       js_object,
