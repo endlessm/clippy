@@ -77,6 +77,21 @@ find_object_forall (GtkWidget *widget, gpointer user_data)
     gtk_container_forall ((GtkContainer *) widget, find_object_forall, data);
 }
 
+static void
+ensure_webview_loaded (GObject *view)
+{
+  while (TRUE)
+    {
+      gboolean loading;
+
+      g_object_get (view, "is-loading", &loading, NULL);
+      if (!loading)
+        break;
+
+      gtk_main_iteration_do (TRUE);
+    }
+}
+
 static inline GObject *
 app_get_object (const gchar *name, GError **error)
 {
@@ -151,6 +166,9 @@ app_get_object (const gchar *name, GError **error)
 
               if ((js_object = g_object_get_data (objval, key)))
                   return js_object;
+
+              /* Make sure the webview page is loaded before we execute JS */
+              ensure_webview_loaded (objval);
 
               js_object = clippy_js_proxy_new (objval, js_object_name);
               g_object_set_data_full (js_object,
