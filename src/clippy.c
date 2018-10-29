@@ -534,6 +534,14 @@ clippy_method_call (GDBusConnection       *connection,
   GVariant *return_value = NULL;
   Clippy *clip = user_data;
   GError *error = NULL;
+  GApplication *app;
+
+  /* Make sure the app is activated in case it was autostarted
+   * through this method call.
+   */
+  app = g_application_get_default ();
+  if (app && !gtk_application_get_active_window (GTK_APPLICATION (app)))
+    g_application_activate (app);
 
   if (g_strcmp0 (method_name, "Highlight") == 0)
     {
