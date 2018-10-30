@@ -77,17 +77,34 @@ find_object_forall (GtkWidget *widget, gpointer user_data)
     gtk_container_forall ((GtkContainer *) widget, find_object_forall, data);
 }
 
+static void
+ensure_webview_loaded (GObject *view)
+{
+  while (TRUE)
+    {
+      gboolean loading;
+
+      g_object_get (view, "is-loading", &loading, NULL);
+      if (!loading)
+        break;
+
+      gtk_main_iteration_do (TRUE);
+    }
+}
+
 static inline GObject *
-app_get_object (GApplication *app, const gchar *name, GError **error)
+app_get_object (const gchar *name, GError **error)
 {
   gboolean const_toplevels = FALSE;
   g_auto(GStrv) tokens = NULL;
   FindData data = { NULL, };
   GList *toplevels, *l;
+  GApplication *app;
 
   if (!name)
     return NULL;
 
+  app = g_application_get_default ();
   if (app && (const_toplevels = GTK_IS_APPLICATION (app)))
     toplevels = gtk_application_get_windows (GTK_APPLICATION (app));
   else
@@ -150,6 +167,9 @@ app_get_object (GApplication *app, const gchar *name, GError **error)
               if ((js_object = g_object_get_data (objval, key)))
                   return js_object;
 
+              /* Make sure the webview page is loaded before we execute JS */
+              ensure_webview_loaded (objval);
+
               js_object = clippy_js_proxy_new (objval, js_object_name);
               g_object_set_data_full (js_object,
                                       "__Clippy_object_name_",
@@ -199,8 +219,7 @@ app_get_object (GApplication *app, const gchar *name, GError **error)
 }
 
 gboolean
-app_get_object_info (GApplication *app,
-                     const gchar  *object,
+app_get_object_info (const gchar  *object,
                      const gchar  *property,
                      const gchar  *signal,
                      GObject     **gobject,
@@ -209,7 +228,7 @@ app_get_object_info (GApplication *app,
                      GError      **error)
 {
 
-  if (!(app && object))
+  if (!object)
     {
       if (error)
         *error = g_error_new_literal (CLIPPY_ERROR,
@@ -221,7 +240,7 @@ app_get_object_info (GApplication *app,
   if (!gobject)
     return FALSE;
 
-  if (!(*gobject = app_get_object (app, object, error)))
+  if (!(*gobject = app_get_object (object, error)))
     return TRUE;
 
   if (property && pspec)
@@ -303,16 +322,16 @@ variant_new_value (const GValue *value)
 }
 
 gboolean
-value_set_variant (GValue *value, GVariant *variant, GApplication *app)
+value_set_variant (GValue *value, GVariant *variant)
 {
   GType type = G_VALUE_TYPE (value);
 
   if (type == G_TYPE_GTYPE)
     g_value_set_gtype (value, g_type_from_name (g_variant_get_string (variant, NULL)));
-  else if (app && (type == G_TYPE_OBJECT || g_type_is_a (type, G_TYPE_OBJECT)))
+  else if (type == G_TYPE_OBJECT || g_type_is_a (type, G_TYPE_OBJECT))
     {
       const gchar *object = g_variant_get_string (variant, NULL);
-      g_value_set_object (value, app_get_object (app, object, NULL));
+      g_value_set_object (value, app_get_object (object, NULL));
     }
   else
     {
