@@ -52,6 +52,53 @@ object_get_name (GObject *object)
   return NULL;
 }
 
+void
+object_emit_action_signal (GObject      *object,
+                           GSignalQuery *signal,
+                           const gchar  *detail,
+                           GVariant     *params,
+                           GError      **error)
+{
+  g_auto(GValue) retval = G_VALUE_INIT;
+  g_autoptr(GVariant) variant = NULL;
+  g_autoptr(GArray) values = NULL;
+  GValue *instance_and_params;
+
+  /* We only support emiting action signals! */
+  clippy_return_if_fail (signal->signal_flags & G_SIGNAL_ACTION,
+                         error, CLIPPY_WRONG_SIGNAL_TYPE,
+                         "Can not emit signal '%s' from object '%s' of type %s because is not an action signal",
+                         signal->signal_name,
+                         object_get_name (object),
+                         G_OBJECT_TYPE_NAME (object));
+
+  /* Create values array */
+  values = g_array_new (FALSE, TRUE, sizeof (GValue));
+  g_array_set_size (values, signal->n_params + 1);
+  g_array_set_clear_func (values, (GDestroyNotify) g_value_unset);
+
+  /* Set instance */
+  instance_and_params = &g_array_index (values, GValue, 0);
+  g_value_init_from_instance (instance_and_params, object);
+
+  /* Set parameters */
+  for (guint i = 0; i < signal->n_params; i++)
+    {
+      GValue *val = &g_array_index (values, GValue, i+1);
+
+      variant = g_variant_get_child_value (params, i+1);
+      g_value_init (val, signal->param_types[i]);
+      value_set_variant (val, variant);
+    }
+
+  /* Setup return value */
+  if (signal->return_type && signal->return_type != G_TYPE_NONE)
+    g_value_init (&retval, signal->return_type);
+
+  /* Emit signal */
+  g_signal_emitv (instance_and_params, signal->signal_id, g_quark_try_string (detail), &retval);
+}
+
 typedef struct
 {
   const gchar *name;
@@ -162,6 +209,11 @@ app_get_object (const gchar *name, GError **error)
                                          "Need to specify a JSContext object name for '%s'",
                                          tokens[i-1]);
 
+              clippy_return_val_if_fail (tokens[i+2] == NULL,
+                                         NULL, error, CLIPPY_NO_OBJECT,
+                                         "Only one level of indirection is suported for %s JSContext",
+                                         tokens[i-1]);
+
               key = g_strconcat ("__Clippy_JSContext_", js_object_name, NULL);
 
               if ((js_object = g_object_get_data (objval, key)))
@@ -261,6 +313,36 @@ app_get_object_info (const gchar  *object,
   return FALSE;
 }
 
+const gchar *
+signature_from_type (GType type)
+{
+  if (type == G_TYPE_CHAR || type == G_TYPE_UCHAR)
+    return "y";
+  else if (type == G_TYPE_BOOLEAN)
+    return "b";
+  else if (type == G_TYPE_INT || type == G_TYPE_LONG)
+    return "i";
+  else if (type == G_TYPE_UINT || type == G_TYPE_ULONG)
+    return "u";
+  else if (type == G_TYPE_INT64)
+    return "x";
+  else if (type == G_TYPE_UINT64)
+    return "t";
+  else if (type == G_TYPE_FLOAT || type == G_TYPE_DOUBLE)
+    return "d";
+  else if (type == G_TYPE_VARIANT)
+    return "v";
+  else if (type == G_TYPE_STRV)
+    return "as";
+  else if (type == G_TYPE_STRING || type == G_TYPE_GTYPE || type == G_TYPE_GSTRING ||
+           (type == G_TYPE_OBJECT || g_type_is_a (type, G_TYPE_OBJECT)))
+    return "s";
+  else if (g_type_is_a (type, G_TYPE_ENUM) || g_type_is_a (type, G_TYPE_FLAGS))
+    return "t";
+
+  return "v";
+}
+
 GVariant *
 variant_new_value (const GValue *value)
 {
@@ -356,5 +438,4 @@ str_replace_char (gchar *str, gchar a, gchar b)
       str = g_utf8_next_char (str);
     }
 }
-
 

@@ -3,7 +3,7 @@
 function run ()
 {
   echo $@
-  gdbus call --session --dest org.gnome.gedit --object-path /org/gnome/gedit --method "$@"
+  gdbus call --session --dest org.gnome.gedit --object-path /com/endlessm/clippy --method "$@"
 }
 
 sleep 1

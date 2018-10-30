@@ -2,7 +2,8 @@ clippy_sources = [
   'utils.c',
   'clippy.c',
   'clippy-js-proxy.c',
-  'webkit-marshal.c'
+  'webkit-marshal.c',
+  'clippy-dbus-wrapper.c'
 ]
 
 gtk_name = 'gtk+-3.0'

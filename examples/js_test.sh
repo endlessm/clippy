@@ -3,7 +3,7 @@
 function run ()
 {
   echo $@
-  gdbus call --session --dest com.endlessm.clippy.test --object-path /com/endlessm/clippy/test --method "$@"
+  gdbus call --session --dest com.endlessm.clippy.test --object-path /com/endlessm/clippy --method "$@"
 }
 
 G_MESSAGES_DEBUG=1 $1&
