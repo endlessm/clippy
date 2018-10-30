@@ -139,7 +139,7 @@ activate (GApplication *application)
   webkit_web_view_load_html (WEBKIT_WEB_VIEW (webview),
                              "<html>"
                              " <script language=\"JavaScript\">"
-                             "  var testobject = { a_boolean: true, a_string: 'A string', a_number: 1234, a_double: 1.2345 };"
+                             "  var testobject = { a_boolean: true, a_string: 'A string', a_number: 1234, a_double: 1.2345, astring: 'A string' };"
                              " </script>"
                              " <h1>ClippyJSProxy Test</h1>"
                              "</html>",

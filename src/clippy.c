@@ -22,6 +22,7 @@
 #include <gmodule.h>
 #include <gtk/gtk.h>
 #include "utils.h"
+#include "clippy-dbus-wrapper.h"
 
 #define HIGHLIGHT_CLASS "highlight"
 #define DBUS_IFACE      "com.endlessm.Clippy"
@@ -42,6 +43,8 @@ typedef struct
   GClosure       *notify_closure;
 
   gchar          *css;
+
+  GDBusObjectManagerServer *manager;
 } Clippy;
 
 static inline void
@@ -169,6 +172,9 @@ clippy_new (GDBusConnection *connection)
   g_closure_ref (clip->notify_closure);
   g_closure_sink (clip->notify_closure);
   
+  clip->manager = g_dbus_object_manager_server_new (DBUS_OBJECT_PATH);
+  g_dbus_object_manager_server_set_connection (clip->manager, connection);
+
   return clip;
 }
 
@@ -179,6 +185,7 @@ clippy_free (Clippy *clip)
                                                 GTK_STYLE_PROVIDER (clip->provider));
   g_clear_object (&clip->connection);
   g_clear_object (&clip->provider);
+  g_clear_object (&clip->manager);
   g_clear_pointer (&clip->widgets, g_hash_table_unref);
   g_clear_pointer (&clip->messages, g_hash_table_unref);
   g_clear_pointer (&clip->signal_closure, g_closure_unref);
@@ -464,14 +471,11 @@ clippy_emit (Clippy       *clip,
              GVariant     *params,
              GError      **error)
 {
-  g_auto(GValue) retval = G_VALUE_INIT;
   g_autoptr(GVariant) variant = NULL;
-  g_autoptr(GArray) values = NULL;
-  GValue *instance_and_params;
   const gchar *object;
   GSignalQuery query;
   GObject *gobject;
-  guint id, i;
+  guint id;
 
   if (!params ||
       !(variant = g_variant_get_child_value (params, 0)) ||
@@ -482,43 +486,67 @@ clippy_emit (Clippy       *clip,
 
   g_signal_query (id, &query);
 
-  /* We only support emiting action signals! */
-  clippy_return_if_fail (query.signal_flags & G_SIGNAL_ACTION,
-                         error, CLIPPY_WRONG_SIGNAL_TYPE,
-                         "Can not emit signal '%s' from object '%s' of type %s because is not an action signal",
-                         signal, object, G_OBJECT_TYPE_NAME (gobject));
-
   g_debug ("%s is action %s %s n_params %d n_children %ld", __func__,
            object,
            signal,
            query.n_params,
            (params) ? g_variant_n_children (params) : 0);
 
-  /* Create values array */
-  values = g_array_new (FALSE, TRUE, sizeof (GValue));
-  g_array_set_size (values, query.n_params + 1);
-  g_array_set_clear_func (values, (GDestroyNotify) g_value_unset);
+  object_emit_action_signal (gobject, &query, detail, params, error);
+}
 
-  /* Set instance */
-  instance_and_params = &g_array_index (values, GValue, 0);
-  g_value_init_from_instance (instance_and_params, gobject);
+static void
+clippy_export (Clippy       *clip,
+               const gchar  *object,
+               GVariant    **return_value,
+               GError      **error)
+{
+  g_autoptr(GDBusObjectSkeleton) skeleton = NULL;
+  g_autoptr(ClippyDbusWrapper) interface = NULL;
+  g_autofree gchar *object_path = NULL;
+  g_autoptr(GString) node_info = NULL;
+  GDBusInterfaceInfo *info;
+  GObject *gobject;
 
-  /* Set parameters */
-  for (i = 0; i < query.n_params; i++)
-    {
-      GValue *val = &g_array_index (values, GValue, i+1);
+  g_debug ("%s %s", __func__, object);
 
-      variant = g_variant_get_child_value (params, i+1);
-      g_value_init (val, query.param_types[i]);
-      value_set_variant (val, variant);
-    }
+  if (app_get_object_info (object, NULL, NULL, &gobject, NULL, NULL, error))
+    return;
 
-  /* Setup return value */
-  if (query.return_type && query.return_type != G_TYPE_NONE)
-    g_value_init (&retval, query.return_type);
+  object_path = g_build_path ("/", DBUS_OBJECT_PATH, "objects", object, NULL);
 
-  /* Emit signal */
-  g_signal_emitv (instance_and_params, id, g_quark_try_string (detail), &retval);
+  /* Replace dots with slashes */
+  str_replace_char (object_path, '.', '/');
+
+  skeleton = g_dbus_object_skeleton_new (object_path);
+  clippy_return_if_fail (skeleton,
+                         error, CLIPPY_NO_OBJECT,
+                         "Could not create dbus skeleton for object '%s'",
+                         object);
+
+  interface = clippy_dbus_wrapper_new (gobject, object_path);
+
+  /* We need to increment  the reference count of the dynamic info struct since
+   * DBus will try to unref it when unexporting it!
+   */
+  info = g_dbus_interface_skeleton_get_info (G_DBUS_INTERFACE_SKELETON (interface));
+  g_dbus_interface_info_ref (info);
+
+  g_dbus_object_skeleton_add_interface (skeleton, G_DBUS_INTERFACE_SKELETON (interface));
+  g_dbus_object_manager_server_export (clip->manager, skeleton);
+
+  clippy_return_if_fail (g_dbus_object_manager_server_is_exported(clip->manager, skeleton),
+                         error, CLIPPY_NO_OBJECT,
+                         "Could not export object '%s' on dbus path '%s'",
+                         object,
+                         g_dbus_object_get_object_path (G_DBUS_OBJECT (skeleton)));
+
+  node_info = g_string_new ("<node xmlns:doc=\"http://www.freedesktop.org/dbus/1.0/doc.dtd\">\n");
+  g_dbus_interface_info_generate_xml (info, 2, node_info);
+  g_string_append (node_info,"</node>");
+
+  if (return_value)
+    *return_value = g_variant_new ("(ss)", object_path, node_info->str);
 }
 
 static void
@@ -601,6 +629,13 @@ clippy_method_call (GDBusConnection       *connection,
 
       g_variant_get (parameters, "(ssv)", &signal, &detail, &params);
       clippy_emit (clip, signal, detail, params, &error);
+    }
+  else if (g_strcmp0 (method_name, "Export") == 0)
+    {
+      g_autofree gchar *object;
+
+      g_variant_get (parameters, "(s)", &object);
+      clippy_export (clip, object, &return_value, &error);
     }
 
   if (error)

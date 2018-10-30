@@ -143,6 +143,19 @@
       <arg type='v' name='params' />
     </method>
 
+
+    <!--
+      Export:
+      @object: Object id to export
+
+      Convenience api to export a object over dbus
+    -->
+    <method name='Export'>
+      <arg type='s' name='object' />
+      <arg type='s' name='path' direction='out'/>
+      <arg type='s' name='info' direction='out'/>
+    </method>
+
     <!-- Properties -->
 
     <!--

@@ -57,6 +57,12 @@ GQuark clippy_quark (void);
 
 const gchar *object_get_name     (GObject      *object);
 
+void         object_emit_action_signal (GObject      *object,
+                                        GSignalQuery *signal,
+                                        const gchar  *detail,
+                                        GVariant     *params,
+                                        GError      **error);
+
 gboolean     app_get_object_info (const gchar  *object,
                                   const gchar  *property,
                                   const gchar  *signal,
@@ -64,6 +70,8 @@ gboolean     app_get_object_info (const gchar  *object,
                                   GParamSpec  **pspec,
                                   guint        *signal_id,
                                   GError      **error);
+
+const gchar *signature_from_type (GType type);
 
 GVariant    *variant_new_value   (const GValue *value);
 
