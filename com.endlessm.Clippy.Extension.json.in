@@ -1,0 +1,26 @@
+{
+  "app-id": "com.endlessm.Clippy.Extension",
+  "branch": "@BRANCH@",
+  "runtime": "com.endlessm.HackComponents",
+  "runtime-version": "@BRANCH@",
+  "sdk": "com.endlessm.apps.Sdk//5",
+  "appstream-compose": false,
+  "separate-locales": false,
+  "build-extension": true,
+  "modules": [
+    {
+      "name": "clippy",
+      "buildsystem": "meson",
+      "config-opts": [
+        "-Dgtk-modules-path=/app/clippy/lib"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "path": ".",
+          "branch": "@GIT_CLONE_BRANCH@"
+        }
+      ]
+    }
+  ]
+}

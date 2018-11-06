@@ -1,3 +1,0 @@
-echo "To use clippy do:"
-echo "  flatpak run --filesystem=INSTALLATION/app/com.endlessm.Clippy/ --env=GTK3_MODULES=INSTALLATION/app/com.endlessm.Clippy/x86_64/eos3/active/files/lib/libclippy-module.so YOUR_APP"
-exit 0
