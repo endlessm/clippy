@@ -3,5 +3,6 @@
   <gresource prefix="/com/endlessm/clippy">
     <file>dbus.xml</file>
     <file>style.css</file>
+    <file>clippify.js</file>
   </gresource>
 </gresources>

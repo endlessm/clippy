@@ -435,9 +435,22 @@ clippy_js_proxy_derived_constructed (GObject *object)
 {
   ClippyJsProxyPrivate *priv = CLIPPY_JS_PROXY_PRIVATE (object);
   g_autoptr(WebKitJavascriptResult) result = NULL;
+  static const gchar *clippify = NULL;
 
   if (!priv->webview || !priv->object_name)
     return;
+
+  if (!clippify)
+    {
+      GBytes *bytes = g_resources_lookup_data ("/com/endlessm/clippy/clippify.js", 0, NULL);
+      clippify = g_bytes_get_data (bytes, NULL);
+
+      if (!clippify)
+        {
+          g_bytes_unref (bytes);
+          return;
+        }
+    }
 
   if (!g_signal_handler_find (priv->webview,
                               G_SIGNAL_MATCH_FUNC | G_SIGNAL_MATCH_DATA,
@@ -455,37 +468,7 @@ clippy_js_proxy_derived_constructed (GObject *object)
                                                                    "clippy_notify");
     }
 
-  if(_js_run_printf (priv->webview, NULL, &result,
-                     "function clippify (obj) {"
-                     "  if (obj._proxy === undefined) {"
-                     "    obj._proxy = {};"
-                     "    for (prop in obj) {"
-                     "      if (prop === '_proxy') continue;"
-                     "      obj._proxy[prop] = obj[prop];"
-                     "      let property = prop;"
-                     "      let descriptor = { get () { return this._proxy[property]; } };"
-                     "      if (typeof obj[prop] === 'number') {"
-                     "        descriptor.set = function (val) {"
-                     "          if (Math.abs (this._proxy[property] - val) < Number.EPSILON)"
-                     "            return;"
-                     "          this._proxy[property] = val;"
-                     "          window.webkit.messageHandlers.clippy_notify.postMessage({ property: property, value: val });"
-                     "        };"
-                     "      } else {"
-                     "        descriptor.set = function (val) {"
-                     "          if (this._proxy[property] === val)"
-                     "            return;"
-                     "          this._proxy[property] = val;"
-                     "          window.webkit.messageHandlers.clippy_notify.postMessage({ property: property, value: val });"
-                     "        };"
-                     "      }"
-                     "      Object.defineProperty (obj, property, descriptor);"
-                     "    }"
-                     "  }"
-                     "  return obj;"
-                     "}"
-                     "clippify (%s);",
-                     priv->object_name))
+  if(_js_run_printf (priv->webview, NULL, &result, clippify, priv->object_name))
     return;
 
   clippy_js_proxy_derived_sync (CLIPPY_JS_PROXY_DERIVED (object),
@@ -590,6 +573,11 @@ clippy_js_proxy_properties_from_js (GObject *webview, const gchar *object)
   for (gint i = 0; properties && properties[i]; i++)
     {
       gchar *property = properties[i];
+
+      /* Ignore private members */
+      if (property[0] == '_')
+        continue;
+
       g_autoptr(JSCValue) val = js_value_object_get_property (value, property);
 
       pspec = param_spec_new_from_jsc (property, val);
