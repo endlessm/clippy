@@ -277,17 +277,24 @@ clippy_js_proxy_derived_set_property (GObject      *object,
 
       /* FIXME: passing a cancellable makes it crash when calling from DBus */
       if (pspec->value_type == G_TYPE_BOOLEAN)
-        _js_run_printf (priv->webview, NULL, NULL, "%s.%s=%s;",
-                        priv->object_name, prop,
-                        g_value_get_boolean (value) ? "true" : "false");
+        {
+          _js_run_printf (priv->webview, NULL, NULL, "%s.%s=%s;",
+                          priv->object_name, prop,
+                          g_value_get_boolean (value) ? "true" : "false");
+        }
       else if (pspec->value_type == G_TYPE_STRING)
-        _js_run_printf (priv->webview, NULL, NULL, "%s.%s='%s';",
-                        priv->object_name, prop,
-                        g_value_get_string (value));
+        {
+          g_autofree gchar *escaped = g_strescape (g_value_get_string (value),
+                                                   NULL);
+          _js_run_printf (priv->webview, NULL, NULL, "%s.%s=\"%s\";",
+                          priv->object_name, prop, escaped);
+        }
       else if (pspec->value_type == G_TYPE_DOUBLE)
-        _js_run_printf (priv->webview, NULL, NULL, "%s.%s=%lf;",
-                        priv->object_name, prop,
-                        g_value_get_double (value));
+        {
+          _js_run_printf (priv->webview, NULL, NULL, "%s.%s=%lf;",
+                          priv->object_name, prop,
+                          g_value_get_double (value));
+        }
 
       return;
     }
