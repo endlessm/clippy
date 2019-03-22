@@ -140,6 +140,44 @@ ensure_webview_loaded (GObject *view)
 }
 
 static inline GObject *
+app_get_gobject_property (GObject *object,
+                          const gchar *object_name,
+                          GParamSpec *pspec,
+                          GError **error)
+{
+  GObject *objval;
+
+  /* Check the property exists, is readable and object type */
+  clippy_return_val_if_fail (pspec,
+                             NULL, error, CLIPPY_NO_OBJECT,
+                             "Object '%s' has no property '%s'",
+                             object_name, pspec->name);
+
+  clippy_return_val_if_fail ((pspec->flags & G_PARAM_READABLE),
+                             NULL, error, CLIPPY_NO_OBJECT,
+                             "Can not read property '%s' from object '%s'",
+                             pspec->name, object_name);
+
+  clippy_return_val_if_fail (g_type_is_a (pspec->value_type, G_TYPE_OBJECT),
+                             NULL, error, CLIPPY_NO_OBJECT,
+                             "Property '%s' from object '%s' is not an object type",
+                             pspec->name, object_name);
+
+  g_object_get (object, pspec->name, &objval, NULL);
+
+  clippy_return_val_if_fail (objval,
+                             NULL, error, CLIPPY_NO_OBJECT,
+                             "Object '%s.%s' property is not set",
+                             object_name, pspec->name);
+
+  /* We assume that the original object holds another reference,
+   * so drop the ref added by g_object_get()
+   */
+  g_object_unref (objval);
+  return objval;
+}
+
+static inline GObject *
 app_get_object (const gchar *name, GError **error)
 {
   gboolean const_toplevels = FALSE;
@@ -242,33 +280,12 @@ app_get_object (const gchar *name, GError **error)
           return js_object;
         }
 
-      /* Check the property exists, is readable and object type */
-      clippy_return_val_if_fail (pspec,
-                                 NULL, error, CLIPPY_NO_OBJECT,
-                                 "Object '%s' has no property '%s'",
-                                 tokens[i-1],
-                                 tokens[i]);
+      objval = app_get_gobject_property (objval, tokens[i-1], pspec, error);
+      if (!objval)
+        /* We encountered an error */
+        return NULL;
 
-      clippy_return_val_if_fail ((pspec->flags & G_PARAM_READABLE),
-                                 NULL, error, CLIPPY_NO_OBJECT,
-                                 "Can not read property '%s' from object '%s'",
-                                 tokens[i],
-                                 tokens[i-1]);
-
-      clippy_return_val_if_fail (g_type_is_a (pspec->value_type, G_TYPE_OBJECT),
-                                 NULL, error, CLIPPY_NO_OBJECT,
-                                 "Property '%s' from object '%s' is not an object type",
-                                 tokens[i],
-                                 tokens[i-1]);
-
-      g_object_get (objval, tokens[i], &objval, NULL);
-
-      clippy_return_val_if_fail (objval,
-                                 NULL, error, CLIPPY_NO_OBJECT,
-                                 "Object '%s.%s' property is not set",
-                                 tokens[i-1],
-                                 tokens[i]);
-      g_object_unref (objval);
+      /* Either return this, or look for the next field */
     }
 
   return objval;
