@@ -178,6 +178,56 @@ app_get_gobject_property (GObject *object,
 }
 
 static inline GObject *
+app_get_jsobject_property (GObject *object,
+                           const gchar *lookup_name,
+                           const gchar *object_name,
+                           const gchar *js_object_name,
+                           const gchar *next_field_name,
+                           GError **error)
+{
+  g_autofree gchar *key = NULL;
+  GObject *js_object;
+
+  clippy_return_val_if_fail (js_object_name != NULL,
+                             NULL, error, CLIPPY_NO_OBJECT,
+                             "Need to specify a JSContext object name for '%s'",
+                             object_name);
+
+  clippy_return_val_if_fail (next_field_name == NULL,
+                             NULL, error, CLIPPY_NO_OBJECT,
+                             "Only one level of indirection is suported for %s JSContext",
+                             object_name);
+
+  key = g_strconcat ("__Clippy_JSContext_", js_object_name, NULL);
+
+  if ((js_object = g_object_get_data (object, key)))
+    return js_object;
+
+  /* Make sure the webview page is loaded before we execute JS */
+  ensure_webview_loaded (object);
+
+  js_object = clippy_js_proxy_new (object, js_object_name);
+  g_object_set_data_full (js_object,
+                          "__Clippy_object_name_",
+                          g_strdup (lookup_name),
+                          g_free);
+  g_object_set_data_full (object,
+                          key,
+                          js_object,
+                          g_object_unref);
+
+  return js_object;
+}
+
+static gboolean
+app_is_jscontext_property (GObject *object,
+                           const gchar *context_name)
+{
+  return (G_TYPE_CHECK_INSTANCE_TYPE (object, webkit_web_view_get_type ()) &&
+          g_strcmp0 (context_name, "JSContext") == 0);
+}
+
+static inline GObject *
 app_get_object (const gchar *name, GError **error)
 {
   gboolean const_toplevels = FALSE;
@@ -227,7 +277,6 @@ app_get_object (const gchar *name, GError **error)
   if (!tokens[1])
     return data.object;
 
-  GType webview_type = webkit_web_view_get_type ();
   GObject *objval = data.object;
   gint i;
 
@@ -241,44 +290,10 @@ app_get_object (const gchar *name, GError **error)
       /*
        * Check if we are trying to access a JS object
        */
-      if (pspec == NULL && webview_type &&
-          g_strcmp0 (tokens[i], "JSContext") == 0 &&
-          G_TYPE_CHECK_INSTANCE_TYPE ((objval), webview_type))
-        {
-          const gchar *js_object_name = tokens[i+1];
-          g_autofree gchar *key = NULL;
-          GObject *js_object;
-
-          clippy_return_val_if_fail (js_object_name != NULL,
-                                     NULL, error, CLIPPY_NO_OBJECT,
-                                     "Need to specify a JSContext object name for '%s'",
-                                     tokens[i-1]);
-
-          clippy_return_val_if_fail (tokens[i+2] == NULL,
-                                     NULL, error, CLIPPY_NO_OBJECT,
-                                     "Only one level of indirection is suported for %s JSContext",
-                                     tokens[i-1]);
-
-          key = g_strconcat ("__Clippy_JSContext_", js_object_name, NULL);
-
-          if ((js_object = g_object_get_data (objval, key)))
-            return js_object;
-
-          /* Make sure the webview page is loaded before we execute JS */
-          ensure_webview_loaded (objval);
-
-          js_object = clippy_js_proxy_new (objval, js_object_name);
-          g_object_set_data_full (js_object,
-                                  "__Clippy_object_name_",
-                                  g_strdup (name),
-                                  g_free);
-          g_object_set_data_full (objval,
-                                  key,
-                                  js_object,
-                                  g_object_unref);
-
-          return js_object;
-        }
+      if (pspec == NULL && app_is_jscontext_property (objval, tokens[i]))
+        return app_get_jsobject_property (objval, name,
+                                          tokens[i-1], tokens[i+1], tokens[i+2],
+                                          error);
 
       objval = app_get_gobject_property (objval, tokens[i-1], pspec, error);
       if (!objval)
