@@ -289,7 +289,7 @@ app_get_object_info (const gchar  *object,
 
   o = app_get_object (object, error);
   if (!o)
-    return TRUE;
+    return FALSE;
 
   if (gobject)
     *gobject = o;
@@ -297,19 +297,19 @@ app_get_object_info (const gchar  *object,
   if (property && pspec)
     clippy_return_val_if_fail (*pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (o),
                                                                       property),
-                               TRUE, error, CLIPPY_NO_PROPERTY,
+                               FALSE, error, CLIPPY_NO_PROPERTY,
                                "No property '%s' found on object '%s'",
                                property,
                                object);
 
   if (signal && signal_id)
     clippy_return_val_if_fail (*signal_id = g_signal_lookup (signal, G_OBJECT_TYPE (o)),
-                               TRUE, error, CLIPPY_NO_SIGNAL,
+                               FALSE, error, CLIPPY_NO_SIGNAL,
                                "Object '%s' of type %s has no signal '%s'",
                                object,
                                G_OBJECT_TYPE_NAME (o),
                                signal);
-  return FALSE;
+  return TRUE;
 }
 
 const gchar *

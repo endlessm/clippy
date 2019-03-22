@@ -244,8 +244,8 @@ clippy_highlight (Clippy       *clip,
   GObject *gobject;
 
   /* Find widget */
-  if (app_get_object_info (object, NULL, NULL,
-                           &gobject, NULL, NULL, error))
+  if (!app_get_object_info (object, NULL, NULL,
+                            &gobject, NULL, NULL, error))
     return;
 
   clippy_return_if_fail (GTK_IS_WIDGET (gobject),
@@ -271,8 +271,8 @@ clippy_unhighlight (Clippy *clip, const gchar *object, GError **error)
 {
   GObject *gobject;
 
-  if (app_get_object_info (object, NULL, NULL,
-                           &gobject, NULL, NULL, error))
+  if (!app_get_object_info (object, NULL, NULL,
+                            &gobject, NULL, NULL, error))
     return;
 
   clippy_timeout_remove (gobject, TRUE);
@@ -325,8 +325,8 @@ clippy_message (Clippy       *clip,
     {
       GObject *gobject;
 
-      if (app_get_object_info (relative_to, NULL, NULL,
-                               &gobject, NULL, NULL, error))
+      if (!app_get_object_info (relative_to, NULL, NULL,
+                                &gobject, NULL, NULL, error))
         return;
 
       clippy_return_if_fail (GTK_IS_WIDGET (gobject),
@@ -398,8 +398,8 @@ clippy_set (Clippy       *clip,
   
   g_debug ("%s %s %s", __func__, object, property);
   
-  if (app_get_object_info (object, property, NULL,
-                           &gobject, &pspec, NULL, error))
+  if (!app_get_object_info (object, property, NULL,
+                            &gobject, &pspec, NULL, error))
     return;
 
   g_value_init (&gvalue, pspec->value_type);
@@ -421,8 +421,8 @@ clippy_get (Clippy       *clip,
   
   g_debug ("%s %s %s", __func__, object, property);
 
-  if (app_get_object_info (object, property, NULL,
-                           &gobject, &pspec, NULL, error))
+  if (!app_get_object_info (object, property, NULL,
+                            &gobject, &pspec, NULL, error))
     return;
 
   g_value_init (&gvalue, pspec->value_type);
@@ -447,8 +447,8 @@ clippy_connect (Clippy       *clip,
 
   g_debug ("%s %s %s %s", __func__, object, signal, detail ? detail : "null");
 
-  if (app_get_object_info (object, NULL, signal,
-                           &gobject, NULL, &id, error))
+  if (!app_get_object_info (object, NULL, signal,
+                            &gobject, NULL, &id, error))
     return;
 
   notify = g_strcmp0 (signal, "notify") == 0;
@@ -480,8 +480,8 @@ clippy_emit (Clippy       *clip,
   if (!params ||
       !(variant = g_variant_get_child_value (params, 0)) ||
       !(object = g_variant_get_string (variant, NULL)) ||
-      app_get_object_info (object, NULL, signal,
-                           &gobject, NULL, &id, error))
+      !app_get_object_info (object, NULL, signal,
+                            &gobject, NULL, &id, error))
     return;
 
   g_signal_query (id, &query);
@@ -510,7 +510,7 @@ clippy_export (Clippy       *clip,
 
   g_debug ("%s %s", __func__, object);
 
-  if (app_get_object_info (object, NULL, NULL, &gobject, NULL, NULL, error))
+  if (!app_get_object_info (object, NULL, NULL, &gobject, NULL, NULL, error))
     return;
 
   object_path = g_build_path ("/", DBUS_OBJECT_PATH, "objects", object, NULL);
