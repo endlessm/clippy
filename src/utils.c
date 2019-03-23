@@ -234,6 +234,7 @@ app_get_object (const gchar *name, GError **error)
   g_auto(GStrv) tokens = NULL;
   FindData data = { NULL, };
   GList *toplevels, *l;
+  gint i;
   GApplication *app;
 
   if (!name)
@@ -274,36 +275,26 @@ app_get_object (const gchar *name, GError **error)
                              "Object '%s' not found",
                              tokens[0]);
 
-  if (!tokens[1])
-    return data.object;
-
-  GObject *objval = data.object;
-  gint i;
-
   for (i = 1; tokens[i]; i++)
     {
-      GParamSpec *pspec;
+      GParamSpec *pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (data.object),
+                                                        tokens[i]);
 
-      pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (objval),
-                                            tokens[i]);
-
-      /*
-       * Check if we are trying to access a JS object
-       */
-      if (pspec == NULL && app_is_jscontext_property (objval, tokens[i]))
-        return app_get_jsobject_property (objval, name,
+      /* Check if we are trying to access a JS object */
+      if (pspec == NULL && app_is_jscontext_property (data.object, tokens[i]))
+        return app_get_jsobject_property (data.object, name,
                                           tokens[i-1], tokens[i+1], tokens[i+2],
                                           error);
 
-      objval = app_get_gobject_property (objval, tokens[i-1], pspec, error);
-      if (!objval)
+      data.object = app_get_gobject_property (data.object, tokens[i-1], pspec, error);
+      if (!data.object)
         /* We encountered an error */
         return NULL;
 
       /* Either return this, or look for the next field */
     }
 
-  return objval;
+  return data.object;
 }
 
 gboolean
