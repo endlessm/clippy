@@ -140,16 +140,111 @@ ensure_webview_loaded (GObject *view)
 }
 
 static inline GObject *
+app_get_gobject_property (GObject *object,
+                          const gchar *object_name,
+                          GParamSpec *pspec,
+                          GError **error)
+{
+  GObject *objval;
+
+  /* Check the property exists, is readable and object type */
+  clippy_return_val_if_fail (pspec,
+                             NULL, error, CLIPPY_NO_OBJECT,
+                             "Object '%s' has no property '%s'",
+                             object_name, pspec->name);
+
+  clippy_return_val_if_fail ((pspec->flags & G_PARAM_READABLE),
+                             NULL, error, CLIPPY_NO_OBJECT,
+                             "Can not read property '%s' from object '%s'",
+                             pspec->name, object_name);
+
+  clippy_return_val_if_fail (g_type_is_a (pspec->value_type, G_TYPE_OBJECT),
+                             NULL, error, CLIPPY_NO_OBJECT,
+                             "Property '%s' from object '%s' is not an object type",
+                             pspec->name, object_name);
+
+  g_object_get (object, pspec->name, &objval, NULL);
+
+  clippy_return_val_if_fail (objval,
+                             NULL, error, CLIPPY_NO_OBJECT,
+                             "Object '%s.%s' property is not set",
+                             object_name, pspec->name);
+
+  /* We assume that the original object holds another reference,
+   * so drop the ref added by g_object_get()
+   */
+  g_object_unref (objval);
+  return objval;
+}
+
+static inline GObject *
+app_get_jsobject_property (GObject *object,
+                           const gchar *lookup_name,
+                           const gchar *object_name,
+                           const gchar *js_object_name,
+                           const gchar *next_field_name,
+                           GError **error)
+{
+  g_autofree gchar *key = NULL;
+  GObject *js_object;
+
+  clippy_return_val_if_fail (js_object_name != NULL,
+                             NULL, error, CLIPPY_NO_OBJECT,
+                             "Need to specify a JSContext object name for '%s'",
+                             object_name);
+
+  clippy_return_val_if_fail (next_field_name == NULL,
+                             NULL, error, CLIPPY_NO_OBJECT,
+                             "Only one level of indirection is suported for %s JSContext",
+                             object_name);
+
+  key = g_strconcat ("__Clippy_JSContext_", js_object_name, NULL);
+
+  if ((js_object = g_object_get_data (object, key)))
+    return js_object;
+
+  /* Make sure the webview page is loaded before we execute JS */
+  ensure_webview_loaded (object);
+
+  js_object = clippy_js_proxy_new (object, js_object_name);
+  g_object_set_data_full (js_object,
+                          "__Clippy_object_name_",
+                          g_strdup (lookup_name),
+                          g_free);
+  g_object_set_data_full (object,
+                          key,
+                          js_object,
+                          g_object_unref);
+
+  return js_object;
+}
+
+static gboolean
+app_is_jscontext_property (GObject *object,
+                           const gchar *context_name)
+{
+  return (G_TYPE_CHECK_INSTANCE_TYPE (object, webkit_web_view_get_type ()) &&
+          g_strcmp0 (context_name, "JSContext") == 0);
+}
+
+static inline GObject *
 app_get_object (const gchar *name, GError **error)
 {
   gboolean const_toplevels = FALSE;
   g_auto(GStrv) tokens = NULL;
   FindData data = { NULL, };
   GList *toplevels, *l;
+  gint i;
   GApplication *app;
 
   if (!name)
-    return NULL;
+    {
+      g_set_error_literal (error,
+                           CLIPPY_ERROR,
+                           CLIPPY_NO_OBJECT,
+                           "No object name specified");
+      return NULL;
+    }
 
   app = g_application_get_default ();
   if (app && (const_toplevels = GTK_IS_APPLICATION (app)))
@@ -180,91 +275,23 @@ app_get_object (const gchar *name, GError **error)
                              "Object '%s' not found",
                              tokens[0]);
 
-  if (tokens[1])
+  for (i = 1; tokens[i]; i++)
     {
-      GType webview_type = webkit_web_view_get_type ();
-      GObject *objval = data.object;
-      gint i;
+      GParamSpec *pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (data.object),
+                                                        tokens[i]);
 
-      for (i = 1; tokens[i]; i++)
-        {
-          GParamSpec *pspec;
+      /* Check if we are trying to access a JS object */
+      if (pspec == NULL && app_is_jscontext_property (data.object, tokens[i]))
+        return app_get_jsobject_property (data.object, name,
+                                          tokens[i-1], tokens[i+1], tokens[i+2],
+                                          error);
 
-          pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (objval),
-                                                tokens[i]);
+      data.object = app_get_gobject_property (data.object, tokens[i-1], pspec, error);
+      if (!data.object)
+        /* We encountered an error */
+        return NULL;
 
-          /*
-           * Check if we are trying to access a JS object
-           */
-          if (pspec == NULL && webview_type &&
-              g_strcmp0 (tokens[i], "JSContext") == 0 &&
-              G_TYPE_CHECK_INSTANCE_TYPE ((objval), webview_type))
-            {
-              const gchar *js_object_name = tokens[i+1];
-              g_autofree gchar *key = NULL;
-              GObject *js_object;
-
-              clippy_return_val_if_fail (js_object_name != NULL,
-                                         NULL, error, CLIPPY_NO_OBJECT,
-                                         "Need to specify a JSContext object name for '%s'",
-                                         tokens[i-1]);
-
-              clippy_return_val_if_fail (tokens[i+2] == NULL,
-                                         NULL, error, CLIPPY_NO_OBJECT,
-                                         "Only one level of indirection is suported for %s JSContext",
-                                         tokens[i-1]);
-
-              key = g_strconcat ("__Clippy_JSContext_", js_object_name, NULL);
-
-              if ((js_object = g_object_get_data (objval, key)))
-                  return js_object;
-
-              /* Make sure the webview page is loaded before we execute JS */
-              ensure_webview_loaded (objval);
-
-              js_object = clippy_js_proxy_new (objval, js_object_name);
-              g_object_set_data_full (js_object,
-                                      "__Clippy_object_name_",
-                                      g_strdup (name),
-                                      g_free);
-              g_object_set_data_full (objval,
-                                      key,
-                                      js_object,
-                                      g_object_unref);
-
-              return js_object;
-            }
-
-          /* Check the property exists, is readable and object type */
-          clippy_return_val_if_fail (pspec,
-                                     NULL, error, CLIPPY_NO_OBJECT,
-                                     "Object '%s' has no property '%s'",
-                                     tokens[i-1],
-                                     tokens[i]);
-
-          clippy_return_val_if_fail ((pspec->flags & G_PARAM_READABLE),
-                                     NULL, error, CLIPPY_NO_OBJECT,
-                                     "Can not read property '%s' from object '%s'",
-                                     tokens[i],
-                                     tokens[i-1]);
-
-          clippy_return_val_if_fail (g_type_is_a (pspec->value_type, G_TYPE_OBJECT),
-                                     NULL, error, CLIPPY_NO_OBJECT,
-                                     "Property '%s' from object '%s' is not an object type",
-                                     tokens[i],
-                                     tokens[i-1]);
-
-          g_object_get (objval, tokens[i], &objval, NULL);
-
-          clippy_return_val_if_fail (objval,
-                                     NULL, error, CLIPPY_NO_OBJECT,
-                                     "Object '%s.%s' property is not set",
-                                     tokens[i-1],
-                                     tokens[i]);
-          g_object_unref (objval);
-        }
-
-      return objval;
+      /* Either return this, or look for the next field */
     }
 
   return data.object;
@@ -279,38 +306,31 @@ app_get_object_info (const gchar  *object,
                      guint        *signal_id,
                      GError      **error)
 {
+  GObject *o;
 
-  if (!object)
-    {
-      if (error)
-        *error = g_error_new_literal (CLIPPY_ERROR,
-                                      CLIPPY_UNKNOWN_ERROR,
-                                      "Unknown error");
-      return TRUE;
-    }
-
-  if (!gobject)
+  o = app_get_object (object, error);
+  if (!o)
     return FALSE;
 
-  if (!(*gobject = app_get_object (object, error)))
-    return TRUE;
+  if (gobject)
+    *gobject = o;
 
   if (property && pspec)
-    clippy_return_val_if_fail (*pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (*gobject),
+    clippy_return_val_if_fail (*pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (o),
                                                                       property),
-                               TRUE, error, CLIPPY_NO_PROPERTY,
+                               FALSE, error, CLIPPY_NO_PROPERTY,
                                "No property '%s' found on object '%s'",
                                property,
                                object);
 
   if (signal && signal_id)
-    clippy_return_val_if_fail (*signal_id = g_signal_lookup (signal, G_OBJECT_TYPE (*gobject)),
-                               TRUE, error, CLIPPY_NO_SIGNAL,
+    clippy_return_val_if_fail (*signal_id = g_signal_lookup (signal, G_OBJECT_TYPE (o)),
+                               FALSE, error, CLIPPY_NO_SIGNAL,
                                "Object '%s' of type %s has no signal '%s'",
                                object,
-                               G_OBJECT_TYPE_NAME (*gobject),
+                               G_OBJECT_TYPE_NAME (o),
                                signal);
-  return FALSE;
+  return TRUE;
 }
 
 const gchar *
