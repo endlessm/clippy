@@ -149,7 +149,13 @@ app_get_object (const gchar *name, GError **error)
   GApplication *app;
 
   if (!name)
-    return NULL;
+    {
+      g_set_error_literal (error,
+                           CLIPPY_ERROR,
+                           CLIPPY_NO_OBJECT,
+                           "No object name specified");
+      return NULL;
+    }
 
   app = g_application_get_default ();
   if (app && (const_toplevels = GTK_IS_APPLICATION (app)))
@@ -279,24 +285,17 @@ app_get_object_info (const gchar  *object,
                      guint        *signal_id,
                      GError      **error)
 {
+  GObject *o;
 
-  if (!object)
-    {
-      if (error)
-        *error = g_error_new_literal (CLIPPY_ERROR,
-                                      CLIPPY_UNKNOWN_ERROR,
-                                      "Unknown error");
-      return TRUE;
-    }
-
-  if (!gobject)
-    return FALSE;
-
-  if (!(*gobject = app_get_object (object, error)))
+  o = app_get_object (object, error);
+  if (!o)
     return TRUE;
 
+  if (gobject)
+    *gobject = o;
+
   if (property && pspec)
-    clippy_return_val_if_fail (*pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (*gobject),
+    clippy_return_val_if_fail (*pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (o),
                                                                       property),
                                TRUE, error, CLIPPY_NO_PROPERTY,
                                "No property '%s' found on object '%s'",
@@ -304,11 +303,11 @@ app_get_object_info (const gchar  *object,
                                object);
 
   if (signal && signal_id)
-    clippy_return_val_if_fail (*signal_id = g_signal_lookup (signal, G_OBJECT_TYPE (*gobject)),
+    clippy_return_val_if_fail (*signal_id = g_signal_lookup (signal, G_OBJECT_TYPE (o)),
                                TRUE, error, CLIPPY_NO_SIGNAL,
                                "Object '%s' of type %s has no signal '%s'",
                                object,
-                               G_OBJECT_TYPE_NAME (*gobject),
+                               G_OBJECT_TYPE_NAME (o),
                                signal);
   return FALSE;
 }
