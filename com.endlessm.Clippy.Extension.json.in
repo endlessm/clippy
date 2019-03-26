@@ -21,6 +21,20 @@
           "branch": "@GIT_CLONE_BRANCH@"
         }
       ]
+    },
+    {
+      "name": "appdata",
+      "buildsystem": "simple",
+      "build-commands": [
+        "install -Dm644 --target-directory=${FLATPAK_DEST}/share/appdata com.endlessm.Clippy.Extension.appdata.xml",
+        "appstream-compose --basename=com.endlessm.Clippy.Extension --prefix=${FLATPAK_DEST} --origin=flatpak com.endlessm.Clippy.Extension"
+      ],
+      "sources": [
+        {
+          "type": "file",
+          "path": "data/com.endlessm.Clippy.Extension.appdata.xml"
+        }
+      ]
     }
   ]
 }
