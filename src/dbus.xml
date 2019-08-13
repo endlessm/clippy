@@ -20,14 +20,14 @@
 <node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
 
 <!--
-  com.endlessm.Clippy:
+  com.hack_computer.Clippy:
   @short_description: Generic interface to interact with Gtk applications
 
   This interface exposes Gtk applications internals for scripting engines or
   others applications to interact with and implement interactive lessons or
   tutorials with the real applications.
 -->
-  <interface name='com.endlessm.Clippy'>
+  <interface name='com.hack_computer.Clippy'>
 
     <!-- Methods -->
 

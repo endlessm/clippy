@@ -16,11 +16,11 @@ Gtk application.
 
 The only requirement is for the application to have a default GApplication which
 will be used to know in which D-Bus connection and object path Clippy should 
-expose com.endlessm.Clippy interface.
+expose com.hack_computer.Clippy interface.
 
 ```shell
 gdbus call --session --dest org.gnome.gedit --object-path /org/gnome/gedit \
-      --method com.endlessm.Clippy.Highlight open_button
+      --method com.hack_computer.Clippy.Highlight open_button
 ```
 
 ### API

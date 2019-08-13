@@ -10,4 +10,4 @@ G_MESSAGES_DEBUG=1 $1&
 
 sleep 2
 
-run com.endlessm.Clippy.Set webview.JSContext.testobject astring "<'Hola Mundo DBus'>"
+run com.hack_computer.Clippy.Set webview.JSContext.testobject astring "<'Hola Mundo DBus'>"

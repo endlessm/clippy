@@ -2,7 +2,7 @@ const {Gio, GLib, GObject} = imports.gi;
 
 var Clippy = Gio.DBusProxy.makeProxyWrapper(`
 <node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
-  <interface name='com.endlessm.Clippy'>
+  <interface name='com.hack_computer.Clippy'>
     <method name='Export'>
       <arg type='s' name='object' />
       <arg type='s' name='path' direction='out'/>
