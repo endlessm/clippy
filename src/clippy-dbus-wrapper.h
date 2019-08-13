@@ -25,7 +25,7 @@
 
 G_BEGIN_DECLS
 
-#define CLIPPY_DBUS_WRAPPER_IFACE "com.endlessm.Clippy.Object"
+#define CLIPPY_DBUS_WRAPPER_IFACE "com.hack_computer.Clippy.Object"
 
 #define CLIPPY_TYPE_DBUS_WRAPPER (clippy_dbus_wrapper_get_type())
 

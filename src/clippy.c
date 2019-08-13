@@ -25,8 +25,8 @@
 #include "clippy-dbus-wrapper.h"
 
 #define HIGHLIGHT_CLASS "highlight"
-#define DBUS_IFACE      "com.endlessm.Clippy"
-#define DBUS_OBJECT_PATH "/com/endlessm/Clippy"
+#define DBUS_IFACE      "com.hack_computer.Clippy"
+#define DBUS_OBJECT_PATH "/com/hack_computer/Clippy"
 #define CLIPPY_TIMEOUT_KEY "ClippyTimeOut"
 
 static GDBusInterfaceInfo *iface_info = NULL;
