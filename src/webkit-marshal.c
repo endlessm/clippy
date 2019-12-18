@@ -178,11 +178,11 @@ _clippy_webkit_user_content_manager_register_script_message_handler (WebKitUserC
   return webkit.webkit_user_content_manager_register_script_message_handler (manager, name);
 }
 
-DEFINE_JSC_TYPE(boolean, boolean, gboolean);
+DEFINE_JSC_TYPE(boolean, boolean, gboolean)
 
-DEFINE_JSC_TYPE(string, string, gchar *);
+DEFINE_JSC_TYPE(string, string, gchar *)
 
-DEFINE_JSC_TYPE(number, double, gdouble);
+DEFINE_JSC_TYPE(number, double, gdouble)
 
 gboolean
 _clippy_jsc_value_is_object (JSCValue *value)

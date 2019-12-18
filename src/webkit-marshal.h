@@ -53,7 +53,7 @@ typedef enum {
 gboolean \
 _clippy_jsc_value_is_##t (JSCValue *value); \
 rt \
-_clippy_jsc_value_to_##t2 (JSCValue *value);
+_clippy_jsc_value_to_##t2 (JSCValue *value)
 
 #define jsc_value_is_boolean _clippy_jsc_value_is_boolean
 #define jsc_value_to_boolean _clippy_jsc_value_to_boolean
