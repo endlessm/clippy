@@ -309,7 +309,7 @@ clippy_js_proxy_derived_finalize (GObject *object)
   ClippyJsProxyDerived *proxy = CLIPPY_JS_PROXY_DERIVED (object);
 
   /* Unset values */
-  for (gint i = 1; i < klass->n_props; i++)
+  for (guint i = 1; i < klass->n_props; i++)
     {
       g_value_unset (&proxy->values[i]);
 
@@ -325,7 +325,7 @@ clippy_js_proxy_derived_finalize (GObject *object)
 }
 
 static void
-clippy_js_proxy_derived_init (ClippyJsProxy *self)
+clippy_js_proxy_derived_init (ClippyJsProxy *self, gpointer gclass)
 {
   ClippyJsProxyDerivedClass *klass = CLIPPY_JS_PROXY_DERIVED_GET_CLASS (self);
   ClippyJsProxyDerived *proxy = CLIPPY_JS_PROXY_DERIVED (self);
@@ -337,7 +337,7 @@ clippy_js_proxy_derived_init (ClippyJsProxy *self)
   proxy->cancellable = g_new0 (GCancellable *, klass->n_props);
 
   /* Initialize values */
-  for (gint i = 1; i < klass->n_props; i++)
+  for (guint i = 1; i < klass->n_props; i++)
     {
       GParamSpec *pspec = klass->properties[i];
       GValue *value = &proxy->values[i];
@@ -402,7 +402,7 @@ handle_script_message_clippy_notify (WebKitUserContentManager *manager,
   str_replace_char (property_str, '_', '-');
 
   /* Find property, update its value and emit notify */
-  for (gint i = 1; i < klass->n_props; i++)
+  for (guint i = 1; i < klass->n_props; i++)
     {
       GParamSpec *pspec = properties[i];
       if (g_strcmp0 (pspec->name, property_str) == 0)
@@ -461,7 +461,8 @@ clippy_js_proxy_derived_constructed (GObject *object)
 
   if (!g_signal_handler_find (priv->webview,
                               G_SIGNAL_MATCH_FUNC | G_SIGNAL_MATCH_DATA,
-                              0, 0, NULL, handle_script_message_clippy_notify,
+                              0, 0, NULL,
+                              (gpointer) handle_script_message_clippy_notify,
                               object))
     {
       WebKitUserContentManager *content_manager =

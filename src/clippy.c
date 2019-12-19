@@ -84,7 +84,6 @@ signal_closure_marshall (GClosure     *closure,
   GSignalInvocationHint *hint = invocation_hint;
   GVariantBuilder builder;
   GObject *object = NULL;
-  gint i;
   
   if (!n_param_values || !G_VALUE_HOLDS_OBJECT (param_values))
     return;
@@ -104,7 +103,7 @@ signal_closure_marshall (GClosure     *closure,
   g_variant_builder_init (&builder, G_VARIANT_TYPE_TUPLE);
       
   /* Add extra parameters (including instance) */
-  for (i = 0; i < n_param_values; i++)
+  for (guint i = 0; i < n_param_values; i++)
     g_variant_builder_add_value (&builder, variant_new_value (&param_values[i]));
 
   /* Emit D-Bus signal */
@@ -257,7 +256,7 @@ clippy_highlight (Clippy       *clip,
   /* Insert widget in table */
   g_hash_table_insert (clip->widgets, g_strdup (object), g_object_ref (gobject));
 
-  g_debug ("%s %s %p", __func__, object, gobject);
+  g_debug ("%s %s %p", __func__, object, (gpointer) gobject);
 
   /* Highlight */
   gtk_style_context_add_class (gtk_widget_get_style_context (GTK_WIDGET (gobject)),
@@ -671,10 +670,9 @@ clippy_set_property (GDBusConnection *connection,
 static void
 register_clippy_iface (void)
 {
-  const static GDBusInterfaceVTable vtable = {
-    clippy_method_call,
-    NULL,
-    clippy_set_property
+  static const GDBusInterfaceVTable vtable = {
+    .method_call = clippy_method_call,
+    .set_property = clippy_set_property
   };
 
   g_autoptr(GError) error = NULL;

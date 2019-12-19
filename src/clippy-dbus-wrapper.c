@@ -227,7 +227,7 @@ clippy_dbus_wrapper_skeleton_dbus_interface_get_properties (GDBusInterfaceSkelet
 
   /* List properties */
   props = g_object_class_list_properties (G_OBJECT_GET_CLASS (priv->object), &n_props);
-  for (gint i = 0; i < n_props; i++)
+  for (guint i = 0; i < n_props; i++)
     {
       GParamSpec *pspec = props[i];
       g_auto(GValue) value = G_VALUE_INIT;
@@ -349,7 +349,7 @@ clippy_dbus_wrapper_set_object (GObject *wrapper, GObject *object)
 
   /* List properties */
   props = g_object_class_list_properties (G_OBJECT_GET_CLASS (object), &n_props);
-  for (gint i = 0; i < n_props; i++)
+  for (guint i = 0; i < n_props; i++)
     {
       GParamSpec *pspec = props[i];
       GDBusPropertyInfo *property;
