@@ -3,6 +3,10 @@ project('clippy', 'c',
   meson_version: '>= 0.40.0',
 )
 
+add_global_arguments(['-Wall',
+                      '-Wno-unused-parameter'],
+                     language: 'c')
+
 config_h = configuration_data()
 configure_file(
   output: 'clippy-config.h',
